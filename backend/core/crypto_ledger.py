@@ -14,7 +14,7 @@ def compute_evidence_hash(evidence: Optional[Dict[str, Any]]) -> str:
     """
     Computes a deterministic SHA-256 hash over canonical delivery evidence fields.
     Returns empty string if evidence is None or empty.
-    
+
     Protected canonical fields (SEC-06 & SEC-12):
     - authenticated_reviewer (str)
     - authenticated_submitter (str)
@@ -32,7 +32,7 @@ def compute_evidence_hash(evidence: Optional[Dict[str, Any]]) -> str:
     """
     if not evidence or not isinstance(evidence, dict):
         return ""
-    
+
     supersedes = evidence.get("supersedes_version")
     canonical = {
         "authenticated_reviewer": str(evidence.get("authenticated_reviewer") or "").strip(),
