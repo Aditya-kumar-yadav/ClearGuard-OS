@@ -305,7 +305,7 @@ async def secure_paypal_webhook(request: Request, db: Session = Depends(get_db))
                 target_tx.status = "DISPUTED"
                 target_tx.delivery_status = "VISION_DAMAGE_DISPUTED"
                 target_tx.paypal_dispute_id = None
-                
+
                 chain = json.loads(target_tx.state_chain) if target_tx.state_chain else []
                 new_hash, updated_chain = record_state_transition(
                     current_chain=chain,

@@ -2088,7 +2088,7 @@ async def submit_delivery_evidence(
     """
     Submits delivery proof-of-delivery (POD) evidence for an authorized transaction.
     Protected by reviewer authentication (ROLE_DELIVERY_SUBMITTER or ROLE_ADMIN).
-    
+
     Hardened for Stage 5B:
     - Maker-checker segregation: Submitter identity bound to verified credentials.
     - Preserves rejected evidence history with versioning (SEC-03).
@@ -2867,7 +2867,7 @@ async def handle_webhook(request: Request):
         elif clean_event in ["REPORT_DISPUTE", "DELIVERY_DAMAGED", "LOST_PACKAGE"]:
             dispute_id = f"INTERNAL-DISPUTE-{uuid.uuid4().hex[:8].upper()}"
             evidence = f"Gemini Vision Telematics: CRITICAL_DAMAGE_DETECTED on {target_tx.get('tracking_number')} | Timestamp: {now_iso}"
-            
+
             target_tx["status"] = "DISPUTED"
             target_tx["dispute_status"] = "INTERNAL_DISPUTE_RECORDED"
             target_tx["delivery_status"] = "VISION_DAMAGE_DISPUTED"
@@ -3133,9 +3133,9 @@ async def judge_live_ping():
         is_live = True
     except Exception as e:
         error_msg = str(e)
-        
+
     elapsed_ms = round((time.time() - start_time) * 1000, 2)
-        
+
     return {
         "status": "ONLINE" if is_live else "OFFLINE",
         "provider": "PayPal Sandbox",

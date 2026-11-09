@@ -102,12 +102,18 @@ def get_validated_environment() -> str:
 
 def is_production_environment() -> bool:
     """Returns True if running in a validated production environment."""
-    return get_validated_environment() == "production"
+    try:
+        return get_validated_environment() == "production"
+    except Exception:
+        return False
 
 
 def is_development_or_test_environment() -> bool:
     """Returns True ONLY if running in an explicitly validated development or test environment."""
-    return get_validated_environment() in ("development", "test")
+    try:
+        return get_validated_environment() in ("development", "test")
+    except Exception:
+        return False
 
 
 def get_auth_secret_key() -> str:
