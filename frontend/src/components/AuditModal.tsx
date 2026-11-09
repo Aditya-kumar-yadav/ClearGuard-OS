@@ -91,6 +91,7 @@ export const AuditModal: React.FC<AuditModalProps> = ({
   const isCaptured = tx.status === "CAPTURED";
   const isDisputed = tx.status === "DISPUTED";
   const isAuthorized = tx.status === "AUTHORIZED";
+  const isPendingApproval = tx.status === "ORDER_CREATED" || tx.payment_status === "PENDING_BUYER_APPROVAL";
 
   const mc = tx.maker_checker_audit || tx.maker_checker?.checker || {};
   const vision = tx.vision_audit || {};
@@ -117,9 +118,11 @@ export const AuditModal: React.FC<AuditModalProps> = ({
                   ? "bg-[#13241b] text-[#00d084] border border-[#1b3d2b]"
                   : isDisputed
                   ? "bg-[#281f12] text-amber-300 border border-amber-800/50"
+                  : isPendingApproval
+                  ? "bg-[#281f12] text-amber-300 border border-amber-800/50"
                   : "bg-[#122230] text-sky-300 border border-sky-800/50"
               }`}>
-                {isBlocked ? "BLOCKED (403)" : isCaptured ? "PAYMENT RELEASED" : isDisputed ? "DISPUTE REFUNDED" : "LOCKED IN ESCROW"}
+                {isBlocked ? "BLOCKED (403)" : isCaptured ? "PAYMENT RELEASED" : isDisputed ? "DISPUTE REFUNDED" : isPendingApproval ? "AWAITING BUYER APPROVAL" : "PAYMENT AUTHORIZED — AWAITING DELIVERY"}
               </span>
               <span className="text-xs font-mono text-zinc-500">ID: {tx.id}</span>
             </div>
@@ -462,7 +465,7 @@ export const AuditModal: React.FC<AuditModalProps> = ({
                   </span>
                   <div className="space-y-1.5 font-mono text-[11px] text-zinc-300 bg-black/40 p-3 rounded-lg border border-[#21232d]">
                     {(vision.vision_reasoning || [
-                      "Funds successfully authorized & locked in PayPal Orders v2 escrow.",
+                      "Payment authorized via PayPal Orders v2 authorization hold.",
                       "Awaiting physical courier drop-off POD photograph for Gemini Vision analysis."
                     ]).map((r: string, idx: number) => (
                       <div key={idx} className="flex items-start space-x-2">
@@ -488,7 +491,7 @@ export const AuditModal: React.FC<AuditModalProps> = ({
                     <span className="text-zinc-300">PayPal Orders v2 (/v2/checkout/orders)</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-zinc-500">Escrow Intent:</span>
+                    <span className="text-zinc-500">Authorization Intent:</span>
                     <span className="text-[#00d084] font-bold">AUTHORIZE (Zero upfront payout)</span>
                   </div>
                   <div className="flex justify-between">

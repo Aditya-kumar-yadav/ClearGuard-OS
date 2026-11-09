@@ -230,12 +230,13 @@ def procure_item(
         )
 
     order_id = order_res.get("order_id")
-    auth_id = order_res.get("auth_id") or f"AUTH_{uuid.uuid4().hex[:17].upper()}"
+    auth_id = order_res.get("auth_id")  # None upon order creation; genuine auth required per SEC-02
     tracking_num = f"TRK{uuid.uuid4().hex[:10].upper()}"
     tx_id = f"TX-{uuid.uuid4().hex[:8].upper()}"
+    initial_status = "AUTHORIZED" if auth_id else "CREATED_AWAITING_APPROVAL"
 
     # Step 4: Record into Ledger with SHA-256 Cryptographic Chain
-    init_chain = create_initial_hash_chain(tx_id, payload.amount, "AUTHORIZED")
+    init_chain = create_initial_hash_chain(tx_id, payload.amount, initial_status)
     new_tx = TransactionModel(
         id=tx_id,
         item_name=payload.name,
@@ -243,7 +244,7 @@ def procure_item(
         amount=payload.amount,
         currency="INR",
         merchant_name=payload.merchant or "Commercial Merchant",
-        status="AUTHORIZED",
+        status=initial_status,
         paypal_order_id=order_id,
         paypal_auth_id=auth_id,
         tracking_number=tracking_num,

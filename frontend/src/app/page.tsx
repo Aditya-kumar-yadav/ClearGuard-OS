@@ -183,7 +183,7 @@ export default function Home() {
       gain.connect(audioCtx.destination);
       osc.start();
       osc.stop(audioCtx.currentTime + 0.018);
-    } catch {}
+    } catch { }
   };
 
   useEffect(() => {
@@ -267,7 +267,7 @@ export default function Home() {
   // Instant Buy / Procure Action with Hardened Fallbacks & Circuit Breakers
   const handleBuyItem = async (product: Product) => {
     setLoading(true);
-    setNotice({ status: "LOADING", message: `Placing order for ${product.name} with PayPal Smart Escrow...` });
+    setNotice({ status: "LOADING", message: `Placing order for ${product.name} with PayPal Orders v2 authorization...` });
     try {
       const res = await fetcher.post(`${API_BASE}/api/procure-item`, product);
       await fetchData();
@@ -287,10 +287,13 @@ export default function Home() {
           message: errorDetail?.reason || errorDetail?.message || `This item (${formatMoney(product.amount)}) exceeds your mandate limit of ${formatMoney(mandate.max_single_spend)}. Order blocked to protect your funds.`,
         });
       } else if (res.ok) {
+        const isAuthorized = res.data?.status === "AUTHORIZED" || res.data?.payment_status === "PAYMENT_AUTHORIZED";
         setNotice({
           status: "SUCCESS",
-          title: "ORDER PLACED IN SMART ESCROW",
-          message: `Success! ${product.name} was ordered. Funds (${formatMoney(product.amount)}) are held safely in PayPal Escrow (Order ${res.data?.paypal_order_id || "Active"}). Money will only be paid to seller when delivery is verified.`,
+          title: isAuthorized ? "PAYMENT AUTHORIZED — AWAITING DELIVERY" : "ORDER CREATED — AWAITING BUYER APPROVAL",
+          message: isAuthorized
+            ? `Success! ${product.name} was ordered. Payment authorized via PayPal Sandbox hold (${formatMoney(product.amount)}). Payment authorized — awaiting delivery.`
+            : `PayPal Sandbox Order created for ${product.name} (${formatMoney(product.amount)}). Order ${res.data?.paypal_order_id || "Active"} is awaiting buyer approval. Payment has not yet been authorized.`,
         });
         confetti({ particleCount: 110, spread: 80, origin: { y: 0.5 } });
         setActiveTab("orders"); // Auto-navigate to orders
@@ -335,9 +338,9 @@ export default function Home() {
       await fetchData();
       confetti({ particleCount: 100, spread: 80, origin: { y: 0.5 } });
       setNotice({
-        status: "CAPTURED",
-        title: "DELIVERY CONFIRMED & ESCROW RELEASED",
-        message: "Delivery verified intact! Cryptographic SHA-256 state chain advanced to CAPTURED.",
+        status: "DELIVERY_CONFIRMED_PENDING_REVIEW",
+        title: "DELIVERY CONFIRMED — PENDING AUDIT",
+        message: "Carrier drop-off webhook recorded. Under Stage 5B protocols, payment capture requires authenticated reviewer verification.",
       });
     } catch (e: any) {
       setNotice({
@@ -345,6 +348,41 @@ export default function Home() {
         title: "WEBHOOK REJECTED",
         message: e?.message || "Webhook signature verification error.",
       });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Buyer Approval Verification & Order Authorization (Stage 4)
+  const handleAuthorizeOrder = async (orderId: string, txId?: string) => {
+    setLoading(true);
+    setNotice({
+      status: "LOADING",
+      title: "VERIFYING PAYMENT",
+      message: `Verifying buyer approval with PayPal Sandbox for order ${orderId}...`,
+    });
+    try {
+      const res = await fetcher.post(`${API_BASE}/api/paypal/orders/${orderId}/authorize`, {});
+      await fetchData();
+
+      if (res.ok) {
+        confetti({ particleCount: 110, spread: 80, origin: { y: 0.5 } });
+        setNotice({
+          status: "SUCCESS",
+          title: "PAYMENT AUTHORIZED — AWAITING DELIVERY",
+          message: `Payment authorized via PayPal Sandbox hold (Auth ID: ${res.data?.paypal_auth_id || "Confirmed"}). Payment authorized — awaiting delivery.`,
+        });
+      } else {
+        const errorDetail = res.data?.detail || res.data;
+        const errMsg = errorDetail?.message || res.error || "Authorization could not be completed.";
+        setNotice({
+          status: "ERROR",
+          title: "AUTHORIZATION REJECTED",
+          message: errMsg,
+        });
+      }
+    } catch (e: any) {
+      setNotice({ status: "ERROR", title: "AUTHORIZATION ERROR", message: e.message });
     } finally {
       setLoading(false);
     }
@@ -432,9 +470,8 @@ export default function Home() {
   });
 
   return (
-    <div className={`min-h-screen bg-[#08090b] text-zinc-100 font-sans transition-all duration-300 ${
-      killSwitchStatus.is_locked_down ? "ring-8 ring-rose-600 ring-inset" : ""
-    }`}>
+    <div className={`min-h-screen bg-[#08090b] text-zinc-100 font-sans transition-all duration-300 ${killSwitchStatus.is_locked_down ? "ring-8 ring-rose-600 ring-inset" : ""
+      }`}>
       {/* Circuit Breaker Alert Banner */}
       {killSwitchStatus.is_locked_down && (
         <div className="bg-[#2a1012] border-b border-rose-500/50 text-rose-300 font-mono text-xs py-2.5 px-6 sticky top-0 z-50 flex items-center justify-between shadow-2xl">
@@ -513,18 +550,16 @@ export default function Home() {
           <div className="segmented-group">
             <button
               onClick={() => setActiveTab("shop")}
-              className={`segmented-item flex items-center space-x-1.5 ${
-                activeTab === "shop" ? "segmented-item-active" : ""
-              }`}
+              className={`segmented-item flex items-center space-x-1.5 ${activeTab === "shop" ? "segmented-item-active" : ""
+                }`}
             >
               <ShoppingBag className="w-3.5 h-3.5" />
               <span>Shop Products</span>
             </button>
             <button
               onClick={() => setActiveTab("orders")}
-              className={`segmented-item flex items-center space-x-1.5 ${
-                activeTab === "orders" ? "segmented-item-active" : ""
-              }`}
+              className={`segmented-item flex items-center space-x-1.5 ${activeTab === "orders" ? "segmented-item-active" : ""
+                }`}
             >
               <Package className="w-3.5 h-3.5" />
               <span>My Escrow Orders</span>
@@ -534,9 +569,8 @@ export default function Home() {
             </button>
             <button
               onClick={() => setActiveTab("budget")}
-              className={`segmented-item flex items-center space-x-1.5 ${
-                activeTab === "budget" ? "segmented-item-active" : ""
-              }`}
+              className={`segmented-item flex items-center space-x-1.5 ${activeTab === "budget" ? "segmented-item-active" : ""
+                }`}
             >
               <Sliders className="w-3.5 h-3.5" />
               <span>Budget &amp; Safeguards</span>
@@ -589,9 +623,8 @@ export default function Home() {
             <button
               onClick={runAutopilot}
               disabled={autopilotRunning || loading}
-              className={`btn-mint px-3.5 py-1.5 text-xs font-bold flex items-center space-x-1.5 shadow-md ${
-                autopilotRunning ? "opacity-75" : ""
-              }`}
+              className={`btn-mint px-3.5 py-1.5 text-xs font-bold flex items-center space-x-1.5 shadow-md ${autopilotRunning ? "opacity-75" : ""
+                }`}
               title="Run 1-Click Autonomous Demo Pitch"
             >
               {autopilotRunning ? (
@@ -610,15 +643,14 @@ export default function Home() {
       {/* NOTIFICATION FEEDBACK BANNER */}
       {notice && (
         <section className="max-w-7xl mx-auto px-4 sm:px-8 pt-4">
-          <div className={`p-4 rounded-xl text-xs font-mono border transition-all ${
-            notice.status === "BLOCKED"
-              ? "bg-[#241113] border-rose-500/40 text-rose-300"
-              : notice.status === "CAPTURED" || notice.status === "SUCCESS"
+          <div className={`p-4 rounded-xl text-xs font-mono border transition-all ${notice.status === "BLOCKED"
+            ? "bg-[#241113] border-rose-500/40 text-rose-300"
+            : notice.status === "CAPTURED" || notice.status === "SUCCESS"
               ? "bg-[#102319] border-[#00d084]/40 text-[#00d084]"
               : notice.status === "DISPUTED"
-              ? "bg-[#251e12] border-amber-500/40 text-amber-300"
-              : "bg-[#14151a] border-[#22242e] text-zinc-300"
-          }`}>
+                ? "bg-[#251e12] border-amber-500/40 text-amber-300"
+                : "bg-[#14151a] border-[#22242e] text-zinc-300"
+            }`}>
             <div className="flex items-center justify-between">
               <span className="font-bold flex items-center text-sm">
                 {notice.status === "BLOCKED" && <AlertTriangle className="w-4 h-4 mr-1.5 text-rose-400" />}
@@ -679,33 +711,29 @@ export default function Home() {
               <div className="flex items-center space-x-1.5 overflow-x-auto">
                 <button
                   onClick={() => setCategoryFilter("all")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                    categoryFilter === "all" ? "bg-white text-black" : "bg-[#13141a] text-zinc-400 hover:text-white"
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${categoryFilter === "all" ? "bg-white text-black" : "bg-[#13141a] text-zinc-400 hover:text-white"
+                    }`}
                 >
                   All Products
                 </button>
                 <button
                   onClick={() => setCategoryFilter("electronics")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                    categoryFilter === "electronics" ? "bg-white text-black" : "bg-[#13141a] text-zinc-400 hover:text-white"
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${categoryFilter === "electronics" ? "bg-white text-black" : "bg-[#13141a] text-zinc-400 hover:text-white"
+                    }`}
                 >
                   Laptops &amp; Phones
                 </button>
                 <button
                   onClick={() => setCategoryFilter("cloud")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                    categoryFilter === "cloud" ? "bg-white text-black" : "bg-[#13141a] text-zinc-400 hover:text-white"
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${categoryFilter === "cloud" ? "bg-white text-black" : "bg-[#13141a] text-zinc-400 hover:text-white"
+                    }`}
                 >
                   Cloud Compute
                 </button>
                 <button
                   onClick={() => setCategoryFilter("luxury")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                    categoryFilter === "luxury" ? "bg-rose-600 text-white" : "bg-[#251214] text-rose-300 hover:text-white"
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${categoryFilter === "luxury" ? "bg-rose-600 text-white" : "bg-[#251214] text-rose-300 hover:text-white"
+                    }`}
                   title="Tests budget cap security gate"
                 >
                   Prohibited (Test AI Block)
@@ -729,11 +757,10 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setShowEdgeDock(!showEdgeDock)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-mono font-semibold transition-all flex items-center space-x-1.5 active:scale-95 ${
-                    showEdgeDock
-                      ? "bg-[#14261c] text-[#00d084] border border-[#1e3a2b]"
-                      : "bg-[#13141a] text-zinc-400 border border-[#232532] hover:text-white"
-                  }`}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-mono font-semibold transition-all flex items-center space-x-1.5 active:scale-95 ${showEdgeDock
+                    ? "bg-[#14261c] text-[#00d084] border border-[#1e3a2b]"
+                    : "bg-[#13141a] text-zinc-400 border border-[#232532] hover:text-white"
+                    }`}
                   title="Toggle Curved AI Edge Dock (Matches Image Reference)"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-[#00d084]" />
@@ -753,20 +780,18 @@ export default function Home() {
                   return (
                     <div
                       key={p.id}
-                      className={`surface-card p-4 flex flex-col justify-between transition-all hover:border-zinc-500 shadow-md ${
-                        isRogue ? "border-rose-900/60 bg-[#160c0e]/60" : ""
-                      }`}
+                      className={`surface-card p-4 flex flex-col justify-between transition-all hover:border-zinc-500 shadow-md ${isRogue ? "border-rose-900/60 bg-[#160c0e]/60" : ""
+                        }`}
                     >
                       <div className="space-y-3">
                         {/* Product Header / Icon */}
                         <div className="flex items-center justify-between">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                            isRogue
-                              ? "bg-rose-950 text-rose-400"
-                              : p.category === "cloud"
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isRogue
+                            ? "bg-rose-950 text-rose-400"
+                            : p.category === "cloud"
                               ? "bg-sky-950 text-sky-400"
                               : "bg-[#182a20] text-[#00d084]"
-                          }`}>
+                            }`}>
                             {isRogue ? (
                               <Watch className="w-5 h-5" />
                             ) : p.category === "cloud" ? (
@@ -778,11 +803,10 @@ export default function Home() {
                             )}
                           </div>
 
-                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md font-semibold ${
-                            isRogue
-                              ? "bg-rose-900/40 text-rose-300 border border-rose-800/50"
-                              : "bg-[#181a22] text-zinc-400 border border-[#242733]"
-                          }`}>
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md font-semibold ${isRogue
+                            ? "bg-rose-900/40 text-rose-300 border border-rose-800/50"
+                            : "bg-[#181a22] text-zinc-400 border border-[#242733]"
+                            }`}>
                             {isRogue ? "SECURITY TEST" : p.category.toUpperCase()}
                           </span>
                         </div>
@@ -912,7 +936,7 @@ export default function Home() {
                   onClick={() => setOrderFilter("authorized")}
                   className={`segmented-item ${orderFilter === "authorized" ? "segmented-item-active" : ""}`}
                 >
-                  🔒 In Escrow ({transactions.filter(t => t.status === "AUTHORIZED").length})
+                  🔒 Payment Authorized ({transactions.filter(t => t.status === "AUTHORIZED").length})
                 </button>
                 <button
                   onClick={() => setOrderFilter("captured")}
@@ -950,6 +974,7 @@ export default function Home() {
                   const isCaptured = tx.status === "CAPTURED";
                   const isDisputed = tx.status === "DISPUTED";
                   const isAuthorized = tx.status === "AUTHORIZED";
+                  const isPendingApproval = tx.status === "ORDER_CREATED" || tx.payment_status === "PENDING_BUYER_APPROVAL";
 
                   return (
                     <div
@@ -958,21 +983,24 @@ export default function Home() {
                     >
                       {/* Left: Product & Tracking info */}
                       <div className="flex items-start space-x-3.5">
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                          isBlocked
-                            ? "bg-[#2d1215] text-rose-400"
-                            : isCaptured
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${isBlocked
+                          ? "bg-[#2d1215] text-rose-400"
+                          : isCaptured
                             ? "bg-[#13241b] text-[#00d084]"
                             : isDisputed
-                            ? "bg-[#251e12] text-amber-400"
-                            : "bg-[#122230] text-sky-400"
-                        }`}>
+                              ? "bg-[#251e12] text-amber-400"
+                              : isPendingApproval
+                                ? "bg-[#281f12] text-amber-300"
+                                : "bg-[#122230] text-sky-400"
+                          }`}>
                           {isBlocked ? (
                             <AlertTriangle className="w-5 h-5" />
                           ) : isCaptured ? (
                             <CheckCircle2 className="w-5 h-5" />
                           ) : isDisputed ? (
                             <AlertCircle className="w-5 h-5" />
+                          ) : isPendingApproval ? (
+                            <Clock className="w-5 h-5" />
                           ) : (
                             <Package className="w-5 h-5" />
                           )}
@@ -981,16 +1009,17 @@ export default function Home() {
                         <div className="space-y-1">
                           <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                             <h3 className="text-sm font-bold text-white">{tx.item_name}</h3>
-                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full uppercase font-bold ${
-                              isBlocked
-                                ? "bg-[#331417] text-rose-300 border border-rose-800/50"
-                                : isCaptured
+                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full uppercase font-bold ${isBlocked
+                              ? "bg-[#331417] text-rose-300 border border-rose-800/50"
+                              : isCaptured
                                 ? "bg-[#13241b] text-[#00d084] border border-[#1b3d2b]"
                                 : isDisputed
-                                ? "bg-[#281f12] text-amber-300 border border-amber-800/50"
-                                : "bg-[#122230] text-sky-300 border border-sky-800/50"
-                            }`}>
-                              {isBlocked ? "BLOCKED BY BUDGET GATE" : isCaptured ? "PAYMENT RELEASED" : isDisputed ? "DISPUTE REFUNDED" : "LOCKED IN ESCROW"}
+                                  ? "bg-[#281f12] text-amber-300 border border-amber-800/50"
+                                  : isPendingApproval
+                                    ? "bg-[#281f12] text-amber-300 border border-amber-800/50"
+                                    : "bg-[#122230] text-sky-300 border border-sky-800/50"
+                              }`}>
+                              {isBlocked ? "BLOCKED BY BUDGET GATE" : isCaptured ? "PAYMENT RELEASED" : isDisputed ? "DISPUTE REFUNDED" : isPendingApproval ? "AWAITING BUYER APPROVAL" : "PAYMENT AUTHORIZED — AWAITING DELIVERY"}
                             </span>
                           </div>
 
@@ -1010,23 +1039,21 @@ export default function Home() {
 
                           {/* 2-Step AI Badges */}
                           <div className="flex items-center space-x-2 pt-1 flex-wrap gap-y-1">
-                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded flex items-center ${
-                              tx.maker_checker_audit?.approved
-                                ? "bg-[#14261c] text-[#00d084] border border-[#1e3a2b]"
-                                : "bg-[#2f1316] text-rose-300 border border-rose-800/50"
-                            }`}>
+                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded flex items-center ${tx.maker_checker_audit?.approved
+                              ? "bg-[#14261c] text-[#00d084] border border-[#1e3a2b]"
+                              : "bg-[#2f1316] text-rose-300 border border-rose-800/50"
+                              }`}>
                               <Shield className="w-2.5 h-2.5 mr-1" />
                               {tx.maker_checker_audit?.approved ? "Step 1: HMAC Signed" : "Step 1: Refused"}
                             </span>
-                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded flex items-center ${
-                              isCaptured
-                                ? "bg-[#14261c] text-[#00d084] border border-[#1e3a2b]"
-                                : isDisputed
+                            <span className={`text-[10px] font-mono px-2 py-0.5 rounded flex items-center ${isCaptured
+                              ? "bg-[#14261c] text-[#00d084] border border-[#1e3a2b]"
+                              : isDisputed
                                 ? "bg-[#281f12] text-amber-300 border border-amber-800/50"
                                 : isBlocked
-                                ? "bg-zinc-800 text-zinc-400"
-                                : "bg-[#122230] text-sky-300 border border-sky-800/50"
-                            }`}>
+                                  ? "bg-zinc-800 text-zinc-400"
+                                  : "bg-[#122230] text-sky-300 border border-sky-800/50"
+                              }`}>
                               <Eye className="w-2.5 h-2.5 mr-1" />
                               {isCaptured ? "Step 2: 99% Pristine" : isDisputed ? "Step 2: Crushed Damage" : isBlocked ? "Step 2: Pre-Purchase Stop" : "Step 2: Awaiting POD"}
                             </span>
@@ -1036,11 +1063,10 @@ export default function Home() {
                               <button
                                 type="button"
                                 onClick={() => setSelectedTx(tx)}
-                                className={`text-[10px] font-mono px-2 py-0.5 rounded flex items-center border transition-all active:scale-95 cursor-pointer ${
-                                  tx.is_corrupted
-                                    ? "bg-rose-950/80 text-rose-300 border-rose-500/60 animate-pulse"
-                                    : "bg-[#0b1d16] text-[#00d084] border-[#1b3d2b] hover:bg-[#122e23] hover:border-[#00d084]/60"
-                                }`}
+                                className={`text-[10px] font-mono px-2 py-0.5 rounded flex items-center border transition-all active:scale-95 cursor-pointer ${tx.is_corrupted
+                                  ? "bg-rose-950/80 text-rose-300 border-rose-500/60 animate-pulse"
+                                  : "bg-[#0b1d16] text-[#00d084] border-[#1b3d2b] hover:bg-[#122e23] hover:border-[#00d084]/60"
+                                  }`}
                                 title="Cryptographically Verified"
                               >
                                 <Lock className="w-2.5 h-2.5 mr-1" />
@@ -1050,7 +1076,7 @@ export default function Home() {
                                     : `0x${(tx.state_hash || "8F92A15B").slice(0, 8).toUpperCase()}`}
                                 </span>
                               </button>
-                              
+
                               {/* Hover Tooltip: Cryptographically Verified */}
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/hash:flex flex-col items-center z-30 pointer-events-none">
                                 <div className="bg-[#12131a] text-zinc-100 text-[10px] font-mono px-2.5 py-1 rounded-md border border-[#2b2d3c] shadow-2xl whitespace-nowrap flex items-center space-x-1.5">
@@ -1067,11 +1093,38 @@ export default function Home() {
                       {/* Right: Amount & Customer Actions */}
                       <div className="flex items-center justify-between lg:justify-end space-x-3 pt-3 lg:pt-0 border-t lg:border-t-0 border-[#1c1e27] flex-shrink-0">
                         <div className="text-right mr-2">
-                          <span className="text-[10px] text-zinc-500 font-mono block">ESCROW AMOUNT</span>
+                          <span className="text-[10px] text-zinc-500 font-mono block">AUTHORIZED AMOUNT</span>
                           <span className={`text-base font-bold font-mono ${isBlocked ? "line-through text-rose-400" : "text-white"}`}>
                             {formatMoney(tx.amount)}
                           </span>
                         </div>
+
+                        {/* Pending Buyer Approval Actions (Stage 4) */}
+                        {isPendingApproval && tx.paypal_order_id && (
+                          <div className="flex items-center space-x-2">
+                            {tx.approval_url && (
+                              <a
+                                href={tx.approval_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn-secondary px-3 py-2 text-xs font-semibold text-amber-300 hover:text-white flex items-center space-x-1 border-amber-800/50 hover:border-amber-600 transition-colors"
+                                title="Open PayPal Sandbox to approve payment hold"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5 mr-1" />
+                                <span>Approve on PayPal</span>
+                              </a>
+                            )}
+                            <button
+                              onClick={() => handleAuthorizeOrder(tx.paypal_order_id, tx.id)}
+                              disabled={loading}
+                              className="btn-mint px-3.5 py-2 text-xs font-bold flex items-center space-x-1.5 shadow-md bg-amber-400 text-black hover:bg-amber-300 transition-colors"
+                              title="Verify buyer approval with PayPal Sandbox and authorize payment hold awaiting delivery"
+                            >
+                              <Lock className="w-3.5 h-3.5 text-black" />
+                              <span>Verify &amp; Authorize</span>
+                            </button>
+                          </div>
+                        )}
 
                         {/* Authorized Actions */}
                         {isAuthorized && (
@@ -1272,21 +1325,42 @@ export default function Home() {
                     </span>
                   </div>
                   <p className="text-xs text-zinc-400 leading-relaxed">
-                    <strong>Step A (Escrow Lock):</strong> Funds are held by PayPal with <code className="text-zinc-200">intent: AUTHORIZE</code> ($0 paid upfront).<br />
+                    <strong>Step A (Payment Authorization):</strong> Payment is authorized via PayPal with <code className="text-zinc-200">intent: AUTHORIZE</code> ($0 paid upfront).<br />
                     <strong>Step B (Visual POD):</strong> Courier drop-off photo is inspected by Gemini Vision. If intact, escrow is captured. If crushed or damaged, an automated dispute claim is filed to refund your money.
                   </p>
                   <div className="flex space-x-2">
                     <button
                       onClick={async () => {
                         setLoading(true);
-                        const res = await fetch(`${API_BASE}/api/vision/verify-delivery`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ scenario: "INTACT_PACKAGE" }),
-                        });
-                        const data = await res.json();
-                        setLoading(false);
-                        setNotice({ status: "CAPTURED", title: "VISION: INTACT PACKAGE", message: "Gemini Vision verified box intact & seal undamaged. Released PayPal Escrow." });
+                        try {
+                          const authTx = transactions.find((t: any) => t.status === "AUTHORIZED" && t.paypal_auth_id);
+                          if (!authTx) {
+                            setNotice({ status: "BLOCKED", title: "NO AUTHORIZED ORDER", message: "Please order a product into escrow first before testing vision inspection." });
+                            setLoading(false);
+                            return;
+                          }
+                          const tokenRes = await fetch(`${API_BASE}/api/auth/token`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ username: "submitter_alice", password: "AliceLogistics2026!" }),
+                          });
+                          const tokenData = await tokenRes.json();
+                          const res = await fetch(`${API_BASE}/api/vision/verify-delivery`, {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              "Authorization": `Bearer ${tokenData.access_token}`
+                            },
+                            body: JSON.stringify({ transaction_id: authTx.id, scenario: "INTACT_PACKAGE" }),
+                          });
+                          const data = await res.json();
+                          await fetchData();
+                          setNotice({ status: "DELIVERY_REVIEW_PENDING", title: "VISION: INTACT PACKAGE", message: "Gemini Vision verified box intact & seal undamaged. Recorded as recommendation awaiting reviewer verification." });
+                        } catch (err: any) {
+                          setNotice({ status: "BLOCKED", title: "VISION ERROR", message: err.message });
+                        } finally {
+                          setLoading(false);
+                        }
                       }}
                       className="flex-1 btn-mint py-2 text-xs font-semibold"
                     >
@@ -1295,14 +1369,35 @@ export default function Home() {
                     <button
                       onClick={async () => {
                         setLoading(true);
-                        const res = await fetch(`${API_BASE}/api/vision/verify-delivery`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ scenario: "CRUSHED_DAMAGE" }),
-                        });
-                        const data = await res.json();
-                        setLoading(false);
-                        setNotice({ status: "DISPUTED", title: "VISION: CRUSHED BOX DETECTED", message: `Gemini Vision detected severe damage. Filed automated dispute (${data.paypal_dispute_id}).` });
+                        try {
+                          const authTx = transactions.find((t: any) => t.status === "AUTHORIZED" && t.paypal_auth_id);
+                          if (!authTx) {
+                            setNotice({ status: "BLOCKED", title: "NO AUTHORIZED ORDER", message: "Please order a product into escrow first before testing vision inspection." });
+                            setLoading(false);
+                            return;
+                          }
+                          const tokenRes = await fetch(`${API_BASE}/api/auth/token`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ username: "submitter_alice", password: "AliceLogistics2026!" }),
+                          });
+                          const tokenData = await tokenRes.json();
+                          const res = await fetch(`${API_BASE}/api/vision/verify-delivery`, {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              "Authorization": `Bearer ${tokenData.access_token}`
+                            },
+                            body: JSON.stringify({ transaction_id: authTx.id, scenario: "CRUSHED_DAMAGE" }),
+                          });
+                          const data = await res.json();
+                          await fetchData();
+                          setNotice({ status: "DISPUTED", title: "VISION: CRUSHED BOX DETECTED", message: "Gemini Vision detected severe damage. Recorded internal dispute for auditor review." });
+                        } catch (err: any) {
+                          setNotice({ status: "BLOCKED", title: "VISION ERROR", message: err.message });
+                        } finally {
+                          setLoading(false);
+                        }
                       }}
                       className="flex-1 btn-secondary py-2 text-xs font-semibold text-rose-300"
                     >
