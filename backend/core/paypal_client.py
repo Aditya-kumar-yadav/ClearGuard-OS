@@ -87,8 +87,14 @@ class PayPalOrdersClient:
         client_secret: Optional[str] = None,
         base_url: Optional[str] = None
     ):
-        self.client_id = (client_id or os.getenv("PAYPAL_CLIENT_ID", "")).strip()
-        self.client_secret = (client_secret or os.getenv("PAYPAL_CLIENT_SECRET", "")).strip()
+        self._explicit_client_id = client_id is not None
+        self._explicit_client_secret = client_secret is not None
+        self.client_id = (
+            os.getenv("PAYPAL_CLIENT_ID", "") if client_id is None else client_id
+        ).strip()
+        self.client_secret = (
+            os.getenv("PAYPAL_CLIENT_SECRET", "") if client_secret is None else client_secret
+        ).strip()
         raw_base = (
             base_url
             or os.getenv("PAYPAL_BASE_URL")
@@ -110,10 +116,19 @@ class PayPalOrdersClient:
             self._token_lock = asyncio.Lock()
         return self._token_lock
 
+    def _resolve_credentials(self) -> tuple[str, str]:
+        """Resolve client credentials, honoring explicit empty strings passed by callers/tests."""
+        cid = (
+            self.client_id if self._explicit_client_id else (self.client_id or os.getenv("PAYPAL_CLIENT_ID", ""))
+        ).strip()
+        sec = (
+            self.client_secret if self._explicit_client_secret else (self.client_secret or os.getenv("PAYPAL_CLIENT_SECRET", ""))
+        ).strip()
+        return cid, sec
+
     def is_configured(self) -> bool:
         """Verifies that actual sandbox credentials are provided, rejecting placeholders."""
-        cid = (self.client_id or os.getenv("PAYPAL_CLIENT_ID", "")).strip()
-        sec = (self.client_secret or os.getenv("PAYPAL_CLIENT_SECRET", "")).strip()
+        cid, sec = self._resolve_credentials()
         if not (cid and sec):
             return False
         # Reject obvious documentation placeholders
@@ -151,9 +166,8 @@ class PayPalOrdersClient:
         - Raises explicit typed exceptions on missing credentials, 401, 403, 429, 5xx, or network failure.
         """
         # 1. Credential presence validation
+        cid, sec = self._resolve_credentials()
         if not self.is_configured():
-            cid = self.client_id or os.getenv("PAYPAL_CLIENT_ID", "")
-            sec = self.client_secret or os.getenv("PAYPAL_CLIENT_SECRET", "")
             if not cid and not sec:
                 raise PayPalConfigurationError("Missing PayPal Client ID and Client Secret in environment.")
             elif not cid:
@@ -182,7 +196,7 @@ class PayPalOrdersClient:
                 res = await client.post(
                     token_url,
                     data={"grant_type": "client_credentials"},
-                    auth=(self.client_id, self.client_secret),
+                    auth=(cid, sec),
                     headers={
                         "Accept": "application/json",
                         "Accept-Language": "en_US"
@@ -261,9 +275,8 @@ class PayPalOrdersClient:
         Synchronous helper for backward-compatibility with remaining synchronous callers.
         Shares the same validation and token cache.
         """
+        cid, sec = self._resolve_credentials()
         if not self.is_configured():
-            cid = self.client_id or os.getenv("PAYPAL_CLIENT_ID", "")
-            sec = self.client_secret or os.getenv("PAYPAL_CLIENT_SECRET", "")
             if not cid and not sec:
                 raise PayPalConfigurationError("Missing PayPal Client ID and Client Secret in environment.")
             elif not cid:
@@ -283,7 +296,7 @@ class PayPalOrdersClient:
                 res = client.post(
                     token_url,
                     data={"grant_type": "client_credentials"},
-                    auth=(self.client_id, self.client_secret),
+                    auth=(cid, sec),
                     headers={"Accept": "application/json", "Accept-Language": "en_US"}
                 )
         except httpx.TimeoutException as te:

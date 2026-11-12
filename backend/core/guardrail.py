@@ -11,10 +11,7 @@ def to_decimal(val: Any) -> Decimal:
         return val.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     return Decimal(str(val)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-OPEN_GUARDRAILS_RULES_PATH = os.getenv(
-    "OPEN_GUARDRAILS_RULES_PATH",
-    r"C:\Users\bitd\Downloads\openguardrails\cli\rules\secrets.json"
-)
+OPEN_GUARDRAILS_RULES_PATH = os.getenv("OPEN_GUARDRAILS_RULES_PATH", "").strip()
 
 SSRF_PATTERNS = [
     (r"169\.254\.169\.254", "aws_ec2_metadata_endpoint"),

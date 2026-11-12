@@ -251,17 +251,14 @@ CATALOG_PRODUCTS = [
 ]
 
 # ----------------- OpenGuardrails Deterministic Engine -----------------
-OPEN_GUARDRAILS_RULES_PATH = os.getenv(
-    "OPEN_GUARDRAILS_RULES_PATH",
-    r"C:\Users\bitd\Downloads\openguardrails\cli\rules\secrets.json"
-)
+OPEN_GUARDRAILS_RULES_PATH = os.getenv("OPEN_GUARDRAILS_RULES_PATH", "").strip()
 
 COMPILED_OPEN_GUARDRAILS: List[Dict[str, Any]] = []
 
 def init_openguardrails():
     global COMPILED_OPEN_GUARDRAILS
     COMPILED_OPEN_GUARDRAILS = []
-    if os.path.exists(OPEN_GUARDRAILS_RULES_PATH):
+    if OPEN_GUARDRAILS_RULES_PATH and os.path.exists(OPEN_GUARDRAILS_RULES_PATH):
         try:
             with open(OPEN_GUARDRAILS_RULES_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)

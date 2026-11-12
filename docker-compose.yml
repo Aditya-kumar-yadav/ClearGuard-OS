@@ -25,11 +25,21 @@ services:
     container_name: aurorapay-backend
     ports:
       - "8000:8000"
+    env_file:
+      - path: ./.env
+        required: false
     environment:
       DATABASE_URL: postgresql://aurora_user:aurora_pass@postgres:5432/aurorapay_db
+      APP_ENV: ${APP_ENV:-development}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      PAYPAL_BASE_URL: ${PAYPAL_BASE_URL:-https://api-m.sandbox.paypal.com}
+      PAYPAL_API_BASE: ${PAYPAL_API_BASE:-https://api-m.sandbox.paypal.com}
       PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
       PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      PAYPAL_RETURN_URL: ${PAYPAL_RETURN_URL:-http://localhost:3000/escrow/return}
+      PAYPAL_CANCEL_URL: ${PAYPAL_CANCEL_URL:-http://localhost:3000/escrow/cancel}
     depends_on:
       postgres:
         condition: service_healthy
@@ -38,11 +48,13 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     container_name: aurorapay-frontend
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     depends_on:
       - backend
 

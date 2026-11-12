@@ -38,6 +38,10 @@ venv.bak/
 *.sqlite3
 aurorapay.db
 
+# Runtime Vision POD evidence & local ledger cache (prevents merge conflicts across teammates)
+backend/vision_evidence/*
+!backend/vision_evidence/.gitkeep
+
 # Logs & debug outputs
 npm-debug.log*
 yarn-debug.log*

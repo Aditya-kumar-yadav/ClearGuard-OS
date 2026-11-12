@@ -114,11 +114,17 @@ Funds are **never paid upfront**. Instead, funds are frozen in smart **PayPal Or
 - PayPal Developer Sandbox Account
 - Google Gemini API Key
 
-### 1. Repository Setup
+### 1. Repository & Environment Setup
 ```bash
 git clone https://github.com/Aditya-kumar-yadav/ClearGuard-OS.git
 cd ClearGuard-OS
+
+# Place the shared team `.env` at the repository root, OR create one from `.env.example`:
+cp .env.example .env
 ```
+> **Note for Collaborators:**
+> - Place `.env` in the **repository root** (`ClearGuard-OS/.env`) with valid PayPal Sandbox (`PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`) and `GEMINI_API_KEY` values. Do **not** commit `.env`.
+> - For live PayPal Sandbox checkout approval, log into [sandbox.paypal.com](https://sandbox.paypal.com) using a **Sandbox Personal Buyer account** in the same supported currency (default **USD**).
 
 ### 2. Backend Setup
 ```bash
@@ -130,10 +136,6 @@ python -m venv venv
 source venv/bin/activate
 
 pip install -r requirements.txt
-cp ../.env.example .env
-```
-Run FastAPI server:
-```bash
 uvicorn main:app --host 0.0.0.0 --port 8000 --no-server-header
 ```
 
@@ -145,23 +147,24 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### 4. Optional: Docker Compose Setup
+```bash
+docker compose up --build
+```
+
 ---
 
 ## 🧪 Automated Verification Suite
 
-Run the full end-to-end verification suite:
+Run the backend integration & security suite (with venv activated from repository root):
 ```bash
-python test_verification.py
+pytest -v
 ```
-This tests:
-1. **Precision Decimal Coercion & Pre-Flight Math Check**
-2. **Cryptographic State Hashing & Row Tamper Detection**
-3. **Strict PayPal Webhook Signature 401 Rejections**
-4. **Slowapi 5/min Blast Radius 429 Rate Limiting**
 
-Run the APIMatic Zero-Hallucination verification:
+Legacy verification scripts are organized under `scripts/`:
 ```bash
-python test_apimatic.py
+python scripts/test_verification.py
+python scripts/test_apimatic.py
 ```
 
 ---
@@ -207,9 +210,10 @@ ClearGuard-OS/
 │   │   ├── auto_dispute.py      # Automated dispute filing tool
 │   │   └── status_checker.py    # Carrier telematics simulator
 │   └── main_agent.py            # Gemini Watchdog autonomous agent
+├── scripts/
+│   ├── test_verification.py     # Manual live-server verification script
+│   └── test_apimatic.py         # APIMatic zero-hallucination verification
 ├── docker-compose.yml
-├── test_verification.py         # Automated security verification suite
-├── test_apimatic.py             # APIMatic zero-hallucination verification
 └── README.md
 ```
 
