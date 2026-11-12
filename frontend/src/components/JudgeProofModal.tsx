@@ -404,11 +404,17 @@ export const JudgeProofModal: React.FC<JudgeProofModalProps> = ({
                   <div className="bg-[#0b0c10] border border-[#21232d] rounded-xl p-4 font-mono space-y-2.5 text-[11px]">
                     <div className="flex justify-between items-center pb-2 border-b border-[#1c1e27]">
                       <span className="text-zinc-500">CONNECTION STATUS:</span>
-                      <span className="text-[#00d084] font-bold flex items-center">
-                        <span className="w-2 h-2 rounded-full bg-[#00d084] mr-1.5 animate-pulse" />
-                        {pingResult.status} (LIVE HTTP 200)
+                      <span className={`${pingResult.status === "ONLINE" ? "text-[#00d084]" : "text-red-400"} font-bold flex items-center`}>
+                        <span className={`w-2 h-2 rounded-full ${pingResult.status === "ONLINE" ? "bg-[#00d084] animate-pulse" : "bg-red-500"} mr-1.5`} />
+                        {pingResult.status === "ONLINE" ? `${pingResult.status} (LIVE HTTP 200)` : `${pingResult.status || "OFFLINE"} (CHECK KEYS)`}
                       </span>
                     </div>
+
+                    {pingResult.error && (
+                      <div className="p-2.5 rounded border border-red-500/30 bg-red-950/30 text-red-300 text-[11px]">
+                        {pingResult.error}
+                      </div>
+                    )}
 
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Endpoint:</span>

@@ -13,6 +13,23 @@
     -webkit-font-smoothing: antialiased;
     letter-spacing: -0.01em;
   }
+
+  button:not(:disabled),
+  a[href],
+  [role="button"],
+  select,
+  label[for] {
+    cursor: pointer;
+    transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  }
+
+  button:not(:disabled):active {
+    transform: scale(0.97);
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
 }
 
 /* World-Class Semantic Component Kit (Matches Reference Image) */
@@ -282,4 +299,32 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #343742;
+}
+
+@keyframes loading-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+.animate-loading-bar {
+  animation: loading-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes dock-panel-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) translateX(18px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0) scale(1);
+  }
+}
+
+.animate-dock-panel {
+  animation: dock-panel-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

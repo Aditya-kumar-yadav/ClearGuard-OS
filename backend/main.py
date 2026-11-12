@@ -1,6 +1,10 @@
 import os
 import sys
 import uuid
+
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+if BACKEND_DIR not in sys.path:
+    sys.path.insert(0, BACKEND_DIR)
 import json
 import re
 import hmac
@@ -18,8 +22,8 @@ from dotenv import load_dotenv
 load_dotenv()
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-from fastapi import FastAPI, HTTPException, status, Depends, Header, Request, Query
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi import FastAPI, HTTPException, status, Depends, Header, Request, Query, UploadFile, File, Form
+from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel, Field
@@ -46,8 +50,13 @@ from core.paypal_client import (
     PayPalTimeoutError,
     PayPalAPIError,
     PayPalNotFoundError,
+    PayPalCaptureError,
 )
-from core.vision_arbiter import GeminiVisionArbiter
+from core.vision_arbiter import (
+    GeminiVisionArbiter,
+    GeminiConfigurationError,
+    GeminiAPIError,
+)
 from core.maker_checker import MakerCheckerProtocol
 from core.kill_switch import kill_switch
 import asyncio
@@ -97,7 +106,7 @@ from core.concurrency import LEDGER_LOCK
 paypal_client = PayPalOrdersClient()
 vision_arbiter = GeminiVisionArbiter()
 
-# ----------------- Product Catalog (5-Item Hardcoded Dataset) -----------------
+# ----------------- Product Catalog (14-Item Enterprise Procurement Catalog) -----------------
 CATALOG_PRODUCTS = [
     {
         "id": "PROD-001",
@@ -148,7 +157,97 @@ CATALOG_PRODUCTS = [
         "merchant": "Amazon Web Services India",
         "description": "GPU inference compute quota for agent operations",
         "demo_type": "standard_safe"
-    }
+    },
+    {
+        "id": "PROD-006",
+        "name": "Dell UltraSharp 27-inch 4K USB-C Monitor",
+        "category": "electronics",
+        "amount": 38500.00,
+        "currency": "INR",
+        "merchant": "Dell Direct B2B",
+        "description": "4K IPS hub monitor with 90W USB-C power delivery for workstation setups",
+        "demo_type": "escrow_delivery"
+    },
+    {
+        "id": "PROD-007",
+        "name": "Apple Magic Trackpad & Studio Mic Bundle",
+        "category": "electronics",
+        "amount": 24500.00,
+        "currency": "INR",
+        "merchant": "Apple Commercial Direct",
+        "description": "Studio audio & multi-touch desktop control kit for product design teams",
+        "demo_type": "standard_safe"
+    },
+    {
+        "id": "PROD-008",
+        "name": "Sony WH-1000XM5 Enterprise Headset",
+        "category": "electronics",
+        "amount": 26900.00,
+        "currency": "INR",
+        "merchant": "Sony Enterprise India",
+        "description": "Active noise-cancelling conference headset for distributed engineering calls",
+        "demo_type": "standard_safe"
+    },
+    {
+        "id": "PROD-009",
+        "name": "Keychron Q1 Pro Wireless Mechanical Keyboard",
+        "category": "hardware",
+        "amount": 16500.00,
+        "currency": "INR",
+        "merchant": "Keychron India",
+        "description": "CNC aluminum QMK/VIA wireless mechanical keyboard for developers",
+        "demo_type": "standard_safe"
+    },
+    {
+        "id": "PROD-010",
+        "name": "CalDigit TS4 Thunderbolt 4 Pro Dock",
+        "category": "hardware",
+        "amount": 29500.00,
+        "currency": "INR",
+        "merchant": "CalDigit Enterprise",
+        "description": "18-port Thunderbolt 4 connectivity hub with 98W host charging",
+        "demo_type": "standard_safe"
+    },
+    {
+        "id": "PROD-011",
+        "name": "Samsung 990 PRO 2TB NVMe SSD Pack",
+        "category": "hardware",
+        "amount": 18200.00,
+        "currency": "INR",
+        "merchant": "Samsung Semiconductor",
+        "description": "High-speed PCIe 4.0 NVMe workstation storage upgrade kit",
+        "demo_type": "standard_safe"
+    },
+    {
+        "id": "PROD-012",
+        "name": "Google Cloud Vertex AI & Gemini Quota Pack",
+        "category": "cloud",
+        "amount": 22000.00,
+        "currency": "INR",
+        "merchant": "Google Cloud Billing",
+        "description": "Dedicated multimodal Vision & LLM API inference capacity credits",
+        "demo_type": "standard_safe"
+    },
+    {
+        "id": "PROD-013",
+        "name": "Ergonomic LED Task Lamp & Aluminum Stand",
+        "category": "office",
+        "amount": 14500.00,
+        "currency": "INR",
+        "merchant": "Workspace Studio India",
+        "description": "Precision desk lighting and anodized riser for dual-monitor desks",
+        "demo_type": "standard_safe"
+    },
+    {
+        "id": "PROD-014",
+        "name": "Logitech MX Master 3S & Brio 4K Kit",
+        "category": "office",
+        "amount": 19800.00,
+        "currency": "INR",
+        "merchant": "Logitech B2B Direct",
+        "description": "Executive ergonomic mouse and 4K HDR webcam conference bundle",
+        "demo_type": "standard_safe"
+    },
 ]
 
 # ----------------- OpenGuardrails Deterministic Engine -----------------
@@ -438,11 +537,12 @@ def insert_ledger_transaction(tx: Dict[str, Any]):
     """Attaches cryptographic SHA-256 state chain and inserts into immutable ledger."""
     _attach_crypto_chain(tx)
     TRANSACTIONS_LEDGER.insert(0, tx)
+    _persist_ledger_cache()
 
 def _init_ledger_cryptographic_chains():
     for tx in TRANSACTIONS_LEDGER:
         _attach_crypto_chain(tx)
-        if tx["status"] in ("CAPTURED", "DISPUTED"):
+        if tx.get("status") in ("CAPTURED", "DISPUTED") and len(tx.get("state_chain") or []) < 2:
             # Multi-step state chain transition
             new_h, updated_c = record_state_transition(
                 current_chain=tx["state_chain"],
@@ -456,6 +556,61 @@ def _init_ledger_cryptographic_chains():
             tx["state_chain"] = updated_c
 
 _init_ledger_cryptographic_chains()
+
+EVIDENCE_DIR = os.path.join(BACKEND_DIR, "vision_evidence")
+LEDGER_CACHE_PATH = os.path.join(EVIDENCE_DIR, "ledger_cache.json")
+os.makedirs(EVIDENCE_DIR, exist_ok=True)
+
+_MIME_TO_EXT = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/webp": "webp",
+    "image/gif": "gif",
+}
+
+
+def _save_vision_evidence(raw_image: bytes, mime_type: str, photo_sha256: str) -> Optional[str]:
+    if not raw_image or not photo_sha256 or not re.fullmatch(r"[a-f0-9]{64}", photo_sha256):
+        return None
+    ext = _MIME_TO_EXT.get(str(mime_type or "").lower().split(";")[0].strip(), "jpg")
+    filename = f"{photo_sha256}.{ext}"
+    target_path = os.path.join(EVIDENCE_DIR, filename)
+    if not os.path.exists(target_path):
+        with open(target_path, "wb") as f:
+            f.write(raw_image)
+    return filename
+
+
+def _persist_ledger_cache() -> None:
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return
+    try:
+        os.makedirs(EVIDENCE_DIR, exist_ok=True)
+        tmp_path = f"{LEDGER_CACHE_PATH}.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            json.dump(TRANSACTIONS_LEDGER, f, default=str)
+        os.replace(tmp_path, LEDGER_CACHE_PATH)
+    except Exception as exc:
+        logger.warning("Failed to persist ledger cache: %s", exc)
+
+
+def _load_ledger_cache() -> None:
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return
+    if not os.path.exists(LEDGER_CACHE_PATH):
+        return
+    try:
+        with open(LEDGER_CACHE_PATH, "r", encoding="utf-8") as f:
+            cached = json.load(f)
+        if isinstance(cached, list) and cached:
+            TRANSACTIONS_LEDGER[:] = cached
+            _init_ledger_cryptographic_chains()
+    except Exception as exc:
+        logger.warning("Failed to load ledger cache: %s", exc)
+
+
+_load_ledger_cache()
 
 # Helper generator for unique 2-Step AI audit certificates
 def generate_maker_checker_audit(item_name: str, category: str, amount: float, merchant: str, approved: bool = True, reason: str = "") -> Dict[str, Any]:
@@ -920,16 +1075,49 @@ def get_paypal_account():
     return ACTIVE_PAYPAL_ACCOUNT
 
 @app.post("/api/paypal/connect")
-def connect_paypal_account(payload: Dict[str, Any]):
-    """Connects or updates the PayPal sandbox account for escrow delegation."""
+async def connect_paypal_account(payload: Dict[str, Any]):
+    """Connects or updates the PayPal sandbox account and verifies live OAuth when credentials are supplied."""
     global ACTIVE_PAYPAL_ACCOUNT
-    cid = payload.get("client_id", "")
-    csec = payload.get("client_secret", "")
+    cid = str(payload.get("client_id", "") or "").strip()
+    csec = str(payload.get("client_secret", "") or "").strip()
     if cid and csec:
+        prev_cid = paypal_client.client_id
+        prev_csec = paypal_client.client_secret
         paypal_client.client_id = cid
         paypal_client.client_secret = csec
         paypal_client._cached_token = None
         paypal_client._token_expires_at = 0.0
+
+        try:
+            await paypal_client.get_access_token(force_refresh=True)
+        except PayPalAuthError as ae:
+            paypal_client.client_id = prev_cid
+            paypal_client.client_secret = prev_csec
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"error": "PayPalAuthError", "message": f"PayPal OAuth verification failed: {str(ae)}"}
+            )
+        except PayPalNetworkError as ne:
+            paypal_client.client_id = prev_cid
+            paypal_client.client_secret = prev_csec
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail={"error": "PayPalNetworkError", "message": f"Could not reach PayPal OAuth server: {str(ne)}"}
+            )
+        except PayPalError as pe:
+            paypal_client.client_id = prev_cid
+            paypal_client.client_secret = prev_csec
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail={"error": "PayPalError", "message": str(pe)}
+            )
+        os.environ["PAYPAL_CLIENT_ID"] = cid
+        os.environ["PAYPAL_CLIENT_SECRET"] = csec
+    elif (cid and not csec) or (csec and not cid):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "IncompleteCredentials", "message": "Both client_id and client_secret are required together."}
+        )
 
     ACTIVE_PAYPAL_ACCOUNT = {
         "email": payload.get("email", "buyer-corp@personal.example.com"),
@@ -937,8 +1125,9 @@ def connect_paypal_account(payload: Dict[str, Any]):
         "status": "VERIFIED",
         "account_type": payload.get("account_type", "PERSONAL_SANDBOX"),
         "balance": payload.get("balance", "₹2,50,000.00"),
-        "client_id": cid,
+        "client_id": cid or (paypal_client.client_id if paypal_client.is_configured() else ""),
         "delegation_approved": True,
+        "oauth_verified": bool(cid and csec) or paypal_client.is_configured(),
         "connected_at": datetime.utcnow().isoformat()
     }
     return ACTIVE_PAYPAL_ACCOUNT
@@ -954,7 +1143,7 @@ def disconnect_paypal_account():
 
 @app.get("/api/products")
 def get_products():
-    """Returns the hardcoded 5-item procurement catalog for AI testing."""
+    """Returns the enterprise procurement catalog."""
     return CATALOG_PRODUCTS
 
 @app.post("/api/procure-item")
@@ -974,6 +1163,12 @@ async def procure_item(
     item_name = payload.get("name", "OnePlus 12 5G (16GB RAM, 512GB)")
     category = payload.get("category", "electronics")
     dec_amount = Decimal(str(payload.get("amount", "42000.00"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    raw_amount_inr = payload.get("amount_inr")
+    dec_amount_inr = (
+        Decimal(str(raw_amount_inr)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if raw_amount_inr is not None
+        else dec_amount
+    )
     currency = payload.get("currency", "USD").strip().upper()
     merchant = payload.get("merchant", "OnePlus Direct Corporate")
     idempotency_key = x_idempotency_key or payload.get("idempotency_key") or str(uuid.uuid4())
@@ -982,7 +1177,7 @@ async def procure_item(
     req = TransactionValidationRequest(
         item_name=item_name,
         category=category,
-        amount=dec_amount,
+        amount=dec_amount_inr,
         merchant_name=merchant,
         idempotency_key=idempotency_key
     )
@@ -1038,6 +1233,7 @@ async def procure_item(
         "item_name": item_name,
         "category": category,
         "amount": float(dec_amount),
+        "amount_inr": float(dec_amount_inr),
         "currency": currency,
         "merchant_name": merchant,
         "status": "ORDER_CREATED",
@@ -1476,14 +1672,6 @@ async def _execute_order_authorization(
                 "order_status": "COMPLETED"
             }
         )
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail={
-                "error": "MissingAuthorizationRecord",
-                "message": "PayPal order reported COMPLETED status without a confirmed authorization object. Cannot infer authorization.",
-                "order_status": "COMPLETED"
-            }
-        )
 
     # Check for repeated request while authorization remains pending
     if matching_tx.get("status") == "AUTHORIZATION_PENDING":
@@ -1562,13 +1750,17 @@ async def _execute_order_authorization(
             }
         )
 
+    mandate_amount_dec = Decimal(
+        str(matching_tx.get("amount_inr", tx_dec))
+    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
     dec_max_limit = Decimal(str(ACTIVE_MANDATE.get("max_budget", "55000.00"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    if tx_dec > dec_max_limit:
+    if mandate_amount_dec > dec_max_limit:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
                 "error": "BudgetCapBreached",
-                "message": f"Transaction amount ({tx_dec}) exceeds mandate budget cap ({dec_max_limit}).",
+                "message": f"Transaction amount ({mandate_amount_dec}) exceeds mandate budget cap ({dec_max_limit}).",
                 "status": "BLOCKED"
             }
         )
@@ -1585,12 +1777,12 @@ async def _execute_order_authorization(
         )
 
     dec_remaining_pool = Decimal(str(ACTIVE_MANDATE.get("remaining_pool", "150000.00"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    if tx_dec > dec_remaining_pool:
+    if mandate_amount_dec > dec_remaining_pool:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
                 "error": "InsufficientEscrowPool",
-                "message": f"Transaction amount ({tx_dec}) exceeds available escrow pool ({dec_remaining_pool}).",
+                "message": f"Transaction amount ({mandate_amount_dec}) exceeds available escrow pool ({dec_remaining_pool}).",
                 "status": "BLOCKED"
             }
         )
@@ -1760,7 +1952,7 @@ async def _execute_order_authorization(
         matching_tx["state_chain"] = updated_chain
 
         # Step 11: Deduct from mandate pool
-        ACTIVE_MANDATE["remaining_pool"] = max(Decimal("0.00"), dec_remaining_pool - tx_dec)
+        ACTIVE_MANDATE["remaining_pool"] = max(Decimal("0.00"), dec_remaining_pool - mandate_amount_dec)
 
         return {
             "status": "AUTHORIZED",
@@ -1908,40 +2100,6 @@ async def authorize_transaction(
         )
     req_key = x_idempotency_key or (payload.get("idempotency_key") if payload else None)
     return await _execute_order_authorization(order_id, idempotency_key=req_key)
-
-
-@app.post("/api/paypal/orders/{order_id}/reconcile")
-async def reconcile_paypal_order(order_id: str):
-    """
-    Reconciles a pending or unconfirmed PayPal order authorization directly against PayPal Orders v2.
-    Inspects GET /v2/checkout/orders/{id} authorizations WITHOUT calling authorize_order again.
-    """
-    return await reconcile_order_authorization(order_id)
-
-
-@app.post("/api/transactions/{tx_id}/reconcile")
-async def reconcile_transaction_endpoint(tx_id: str):
-    """
-    Convenience alias to reconcile a transaction by internal transaction ID (TX-...).
-    """
-    clean_tx_id = tx_id.strip()
-    matching_tx = None
-    for tx in TRANSACTIONS_LEDGER:
-        if tx.get("id") == clean_tx_id:
-            matching_tx = tx
-            break
-    if not matching_tx:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "TransactionNotFound", "message": f"Transaction '{clean_tx_id}' not found."}
-        )
-    order_id = matching_tx.get("paypal_order_id")
-    if not order_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "MissingPayPalOrderId", "message": f"Transaction '{clean_tx_id}' has no associated PayPal Order ID."}
-        )
-    return await reconcile_order_authorization(order_id)
 
 
 @app.get("/api/paypal/return")
@@ -2971,13 +3129,29 @@ async def maker_checker_flow(payload: Dict[str, Any]):
             "message": "Transaction blocked: Air-gapped Agent 2 refused to sign proposal."
         }
 
-    # Step 3: Verified with HMAC signature -> Proceed to PayPal Orders v2 AUTHORIZE
+    # Step 3: Verified with HMAC signature -> Proceed to PayPal Orders v2 AUTHORIZE if configured
     sig = audit_result.get("cryptographic_signature")
     is_valid = MakerCheckerProtocol.verify_auditor_signature(proposal, sig)
     if not is_valid:
         raise HTTPException(status_code=403, detail="Cryptographic signature verification failed")
 
-    order_res = paypal_client.create_authorized_order(item_name, amount, currency="INR")
+    if not paypal_client.is_configured() or payload.get("execute_paypal") is False:
+        return {
+            "status": "AUDITED_AND_SIGNED",
+            "maker": proposal,
+            "checker": audit_result,
+            "audit": audit_result,
+            "cryptographic_signature": sig,
+            "paypal_order_id": None,
+            "message": "Dual-Agent Maker-Checker HMAC-SHA256 verification passed. Configure PayPal Sandbox keys to dispatch an escrow order.",
+        }
+
+    try:
+        order_res = paypal_client.create_authorized_order(item_name, amount, currency="USD" if amount < 1000 else "USD")
+    except PayPalConfigurationError as ce:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail={"error": "PayPalConfigurationError", "message": str(ce)})
+    except PayPalError as pe:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail={"error": "PayPalError", "message": str(pe)})
     order_id = order_res.get("order_id")
     auth_id = order_res.get("auth_id")
     is_sim = auth_id is None
@@ -3074,12 +3248,34 @@ async def vision_verify_delivery(
 
         scenario = payload.get("scenario", "INTACT_PACKAGE")
         expected_address = payload.get("expected_address", "Corporate HQ Tech Park, Suite 402, Bengaluru 560001")
+        image_data = payload.get("image_data") or payload.get("image_base64")
+        mime_type = payload.get("mime_type")
 
-        # Run Gemini Vision inspection
-        inspection = vision_arbiter.inspect_delivery_proof(
-            package_scenario=scenario,
-            expected_address=expected_address
-        )
+        # Run Gemini Vision inspection (real multimodal Vision when image_data is provided)
+        try:
+            inspection = vision_arbiter.inspect_delivery_proof(
+                package_scenario=scenario,
+                expected_address=expected_address,
+                image_data=image_data,
+                mime_type=mime_type,
+                expected_tracking=matching_tx.get("tracking_number"),
+                item_name=matching_tx.get("item_name"),
+            )
+        except GeminiConfigurationError as gce:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "GeminiConfigurationError", "message": str(gce)}
+            )
+        except ValueError as ve:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "InvalidImagePayload", "message": str(ve)}
+            )
+        except GeminiAPIError as gae:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail={"error": "GeminiAPIError", "message": str(gae)}
+            )
         analysis = inspection["analysis"]
         rec_action = analysis["recommended_action"]
 
@@ -3313,6 +3509,671 @@ def reset_kill_switch():
         "kill_switch": status_data
     }
 
+def _advance_tx_chain(tx: Dict[str, Any], new_status: str) -> None:
+    """Appends a cryptographic SHA-256 transition when the transaction carries an active state chain."""
+    if tx.get("state_chain") is not None and tx.get("state_hash"):
+        new_h, updated_chain = record_state_transition(
+            current_chain=tx["state_chain"],
+            current_hash=tx["state_hash"],
+            amount=tx["amount"],
+            new_status=new_status,
+        )
+        tx["previous_state_hash"] = tx["state_hash"]
+        tx["state_hash"] = new_h
+        tx["state_chain"] = updated_chain
+
+
+def _find_tx_or_404(clean_tx_id: str) -> Dict[str, Any]:
+    for tx in TRANSACTIONS_LEDGER:
+        if tx.get("id") == clean_tx_id:
+            return tx
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail={"error": "TransactionNotFound", "message": f"Transaction '{clean_tx_id}' not found."},
+    )
+
+
+@app.get("/api/health")
+def health_check():
+    """Live backend readiness & integration configuration status."""
+    pp_env = "live" if "api-m.paypal.com" in paypal_client.base_url else "sandbox"
+    return {
+        "status": "ONLINE",
+        "paypal_configured": paypal_client.is_configured(),
+        "gemini_configured": vision_arbiter.is_configured(),
+        "paypal_environment": pp_env,
+        "environment": os.getenv("APP_ENV", os.getenv("ENVIRONMENT", "development")),
+        "kill_switch_locked": kill_switch.is_locked_down,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
+@app.post("/api/config/keys")
+async def configure_runtime_keys(payload: Dict[str, Any]):
+    """
+    Updates GEMINI_API_KEY and/or PayPal Sandbox credentials in the running backend
+    (disabled in production). Never echoes raw secrets back.
+    """
+    env_mode = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "development").strip().lower()
+    if env_mode in ("production", "prod"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": "ProductionLocked", "message": "Runtime credential updates are disabled in production."},
+        )
+
+    gemini_key = str(payload.get("gemini_api_key") or "").strip()
+    pp_id = str(payload.get("paypal_client_id") or "").strip()
+    pp_secret = str(payload.get("paypal_client_secret") or "").strip()
+    pp_env = str(payload.get("paypal_environment") or "").strip().lower()
+    verify = bool(payload.get("verify", True))
+
+    if gemini_key:
+        vision_arbiter.api_key = gemini_key
+        vision_arbiter._genai_client = None
+        os.environ["GEMINI_API_KEY"] = gemini_key
+
+    if (pp_id and not pp_secret) or (pp_secret and not pp_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "IncompletePayPalCredentials", "message": "Provide both paypal_client_id and paypal_client_secret."},
+        )
+
+    if pp_env in ("sandbox", "live", "production"):
+        norm_env = "live" if pp_env in ("live", "production") else "sandbox"
+        paypal_client.base_url = "https://api-m.paypal.com" if norm_env == "live" else "https://api-m.sandbox.paypal.com"
+        os.environ["PAYPAL_ENVIRONMENT"] = norm_env
+
+    if pp_id and pp_secret:
+        paypal_client.client_id = pp_id
+        paypal_client.client_secret = pp_secret
+        paypal_client._cached_token = None
+        paypal_client._token_expires_at = 0.0
+        os.environ["PAYPAL_CLIENT_ID"] = pp_id
+        os.environ["PAYPAL_CLIENT_SECRET"] = pp_secret
+
+    paypal_verified = False
+    if verify and paypal_client.is_configured():
+        try:
+            await paypal_client.get_access_token(force_refresh=True)
+            paypal_verified = True
+        except PayPalAuthError as ae:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"error": "PayPalAuthError", "message": str(ae)},
+            )
+        except PayPalNetworkError as ne:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail={"error": "PayPalNetworkError", "message": str(ne)},
+            )
+
+    current_pp_env = "live" if "api-m.paypal.com" in paypal_client.base_url else "sandbox"
+    return {
+        "status": "UPDATED",
+        "gemini_configured": vision_arbiter.is_configured(),
+        "paypal_configured": paypal_client.is_configured(),
+        "paypal_verified": paypal_verified,
+        "paypal_environment": current_pp_env,
+    }
+
+
+@app.post("/api/vision/inspect-photo")
+async def vision_inspect_real_photo(request: Request):
+    """
+    Real Multimodal Gemini Vision Photo Inspection:
+    - Accepts multipart/form-data (`file`, `transaction_id`, `expected_address`, `expected_tracking`, `item_name`)
+      OR JSON (`image_data`/`image_base64`, `mime_type`, `transaction_id`, `expected_address`, ...).
+    - Validates bytes with Pillow and invokes real Google Gemini Vision API (no mock fallback).
+    - If `transaction_id` is supplied, records the inspection under `vision_audit` without auto-capturing.
+    """
+    content_type = (request.headers.get("content-type") or "").lower()
+    raw_image: Optional[Union[bytes, str]] = None
+    mime_type: Optional[str] = None
+    tx_id: Optional[str] = None
+    expected_address = "Corporate HQ Tech Park, Suite 402, Bengaluru 560001"
+    expected_tracking: Optional[str] = None
+    item_name: Optional[str] = None
+    auto_settle = False
+
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        uploaded = form.get("file") or form.get("photo") or form.get("image")
+        if uploaded is not None and hasattr(uploaded, "read"):
+            raw_image = await uploaded.read()
+            mime_type = getattr(uploaded, "content_type", None) or (form.get("mime_type") if isinstance(form.get("mime_type"), str) else None)
+        elif isinstance(form.get("image_data"), str):
+            raw_image = str(form.get("image_data"))
+            mime_type = str(form.get("mime_type") or "") or None
+        tx_id = str(form.get("transaction_id") or form.get("order_id") or form.get("paypal_order_id") or "").strip() or None
+        if form.get("expected_address"):
+            expected_address = str(form.get("expected_address"))
+        expected_tracking = str(form.get("expected_tracking") or "").strip() or None
+        item_name = str(form.get("item_name") or "").strip() or None
+        auto_settle = str(form.get("auto_settle") or "").strip().lower() in ("1", "true", "yes")
+    else:
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = {}
+        raw_image = payload.get("image_data") or payload.get("image_base64")
+        mime_type = payload.get("mime_type")
+        tx_id = str(payload.get("transaction_id") or payload.get("order_id") or payload.get("paypal_order_id") or "").strip() or None
+        if payload.get("expected_address"):
+            expected_address = str(payload.get("expected_address"))
+        expected_tracking = str(payload.get("expected_tracking") or "").strip() or None
+        item_name = str(payload.get("item_name") or "").strip() or None
+        auto_settle = bool(payload.get("auto_settle", False))
+
+    if not raw_image:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "MissingPhotoPayload", "message": "Upload an image file or provide base64 'image_data'."},
+        )
+
+    matching_tx: Optional[Dict[str, Any]] = None
+    order_id_ctx: Optional[str] = None
+    paypal_order_ctx: Optional[str] = None
+    merchant_ctx: Optional[str] = None
+    category_ctx: Optional[str] = None
+    if tx_id:
+        async with LEDGER_LOCK:
+            matching_tx = next(
+                (t for t in TRANSACTIONS_LEDGER if t.get("id") == tx_id or t.get("paypal_order_id") == tx_id),
+                None,
+            )
+            if matching_tx is None:
+                matching_tx = _find_tx_or_404(tx_id)
+            order_id_ctx = matching_tx.get("id")
+            paypal_order_ctx = matching_tx.get("paypal_order_id")
+            merchant_ctx = matching_tx.get("merchant_name")
+            category_ctx = matching_tx.get("category")
+            expected_tracking = expected_tracking or matching_tx.get("tracking_number")
+            item_name = item_name or matching_tx.get("item_name")
+
+    try:
+        inspection = vision_arbiter.inspect_real_photo(
+            image_data=raw_image,
+            mime_type=mime_type,
+            expected_address=expected_address,
+            expected_tracking=expected_tracking,
+            item_name=item_name,
+            order_id=order_id_ctx,
+            paypal_order_id=paypal_order_ctx,
+            merchant_name=merchant_ctx,
+            category=category_ctx,
+        )
+    except GeminiConfigurationError as gce:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": "GeminiConfigurationError", "message": str(gce)},
+        )
+    except ValueError as ve:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "InvalidImagePayload", "message": str(ve)},
+        )
+    except GeminiAPIError as gae:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"error": "GeminiAPIError", "message": str(gae)},
+        )
+
+    analysis = inspection["analysis"]
+    ocr_info = analysis.get("ocr_extracted") or {}
+    auto_matched_order_id: Optional[str] = None
+
+    # Auto-match uploaded photo OCR against site-produced order numbers / tracking if no Order No was pre-selected
+    if matching_tx is None:
+        ocr_candidates = {
+            str(ocr_info.get("order_reference") or "").strip().upper(),
+            str(ocr_info.get("tracking_number") or "").strip().upper(),
+        } - {"", "NONE", "NULL", "NOT_VISIBLE", "N/A"}
+        if ocr_candidates:
+            async with LEDGER_LOCK:
+                for cand in TRANSACTIONS_LEDGER:
+                    cand_ids = {
+                        str(cand.get("id") or "").strip().upper(),
+                        str(cand.get("paypal_order_id") or "").strip().upper(),
+                        str(cand.get("tracking_number") or "").strip().upper(),
+                    } - {""}
+                    if cand_ids & ocr_candidates:
+                        matching_tx = cand
+                        auto_matched_order_id = cand.get("id")
+                        analysis["order_no_match_status"] = "EXACT_MATCH"
+                        inspection["order_context"] = {
+                            "order_id": cand.get("id"),
+                            "paypal_order_id": cand.get("paypal_order_id"),
+                            "expected_item": cand.get("item_name"),
+                            "expected_tracking": cand.get("tracking_number"),
+                            "merchant_name": cand.get("merchant_name"),
+                            "category": cand.get("category"),
+                            "matched_via": "OCR_ORDER_NO_LOOKUP",
+                        }
+                        break
+
+    rec_action = analysis.get("recommended_action", "CAPTURE_ESCROW")
+    inspected_at = datetime.utcnow().isoformat()
+    evidence_filename = _save_vision_evidence(
+        raw_image=raw_image,
+        mime_type=inspection.get("photo_mime_type") or mime_type,
+        photo_sha256=str(inspection.get("photo_sha256") or ""),
+    )
+    evidence_url = f"/api/vision/evidence/{evidence_filename}" if evidence_filename else None
+
+    # Normalize flat summary fields alongside nested `analysis` for Orders & AuditModal compatibility
+    inspection["evidence_url"] = evidence_url
+    inspection["inspected_at"] = inspected_at
+    inspection["verdict"] = analysis.get("verdict")
+    inspection["condition"] = analysis.get("condition")
+    inspection["integrity_score"] = analysis.get("integrity_score")
+    inspection["deformation_score"] = analysis.get("deformation_score")
+    inspection["recommended_action"] = rec_action
+    inspection["detected_item"] = analysis.get("detected_item")
+    inspection["item_matches_order"] = analysis.get("item_matches_order")
+    inspection["order_no_match_status"] = analysis.get("order_no_match_status")
+    inspection["ocr_extracted"] = ocr_info
+    inspection["vision_reasoning"] = analysis.get("vision_reasoning") or []
+
+    if matching_tx is not None:
+        resolved_tx_id = matching_tx["id"]
+        async with LEDGER_LOCK:
+            matching_tx = _find_tx_or_404(resolved_tx_id)
+            matching_tx["vision_audit"] = inspection
+            matching_tx["photo_evidence_hash"] = inspection.get("photo_sha256")
+            if evidence_url:
+                matching_tx["vision_evidence_url"] = evidence_url
+                matching_tx["vision_evidence_mime"] = inspection.get("photo_mime_type") or mime_type
+            matching_tx["vision_inspected_at"] = inspected_at
+            matching_tx["vision_approved"] = rec_action == "CAPTURE_ESCROW"
+            if matching_tx.get("status") == "AUTHORIZED":
+                if rec_action == "CAPTURE_ESCROW":
+                    if matching_tx.get("delivery_status") in (None, "AWAITING_DELIVERY", DeliveryState.AWAITING_DELIVERY.value):
+                        matching_tx["delivery_status"] = DeliveryState.DELIVERY_REVIEW_PENDING.value
+                else:
+                    matching_tx["delivery_status"] = (
+                        "VISION_ITEM_MISMATCH"
+                        if analysis.get("item_matches_order") is False or analysis.get("order_no_match_status") == "MISMATCHED"
+                        else "VISION_DAMAGE_DISPUTED"
+                    )
+                    matching_tx["dispute_reason"] = f"Gemini Vision Flagged: {analysis.get('verdict')} ({analysis.get('condition')})"
+            _persist_ledger_cache()
+
+    paypal_capture_id: Optional[str] = None
+    auto_settled = False
+    auto_settle_error: Optional[str] = None
+    final_status = matching_tx.get("status") if matching_tx else "INSPECTED"
+    final_delivery_status = matching_tx.get("delivery_status") if matching_tx else analysis.get("recommended_action")
+    msg = (
+        f"Real Gemini Vision analyzed photo ({inspection.get('model')}): "
+        f"{analysis.get('verdict')} — {analysis.get('condition')}."
+    )
+
+    if auto_settle and matching_tx is not None and matching_tx.get("status") == "AUTHORIZED":
+        try:
+            if rec_action == "CAPTURE_ESCROW":
+                cap_res = await capture_authorized_transaction(matching_tx["id"], payload={})
+                paypal_capture_id = cap_res.get("paypal_capture_id")
+                final_status = cap_res.get("status", "CAPTURED")
+                final_delivery_status = DeliveryState.DELIVERY_VERIFIED.value
+                auto_settled = True
+                msg = (
+                    f"Gemini Vision ({inspection.get('model')}) passed ({analysis.get('verdict')}) "
+                    f"→ PayPal Escrow Captured ({paypal_capture_id})."
+                )
+            else:
+                void_res = await void_or_dispute_transaction(
+                    matching_tx["id"],
+                    payload={"reason": f"Gemini Vision Flagged: {analysis.get('verdict')} ({analysis.get('condition')})"},
+                )
+                final_status = void_res.get("status", "VOIDED")
+                auto_settled = True
+                msg = (
+                    f"Gemini Vision ({inspection.get('model')}) flagged {analysis.get('condition')} "
+                    f"→ PayPal Escrow {final_status} to protect buyer."
+                )
+        except HTTPException as settle_exc:
+            detail_obj = settle_exc.detail if isinstance(settle_exc.detail, dict) else {"message": str(settle_exc.detail)}
+            auto_settle_error = detail_obj.get("message") or str(settle_exc.detail)
+            msg = f"{msg} Auto-settlement note: {auto_settle_error}"
+
+    return {
+        "status": final_status,
+        "delivery_status": final_delivery_status,
+        "transaction_id": matching_tx["id"] if matching_tx else None,
+        "auto_matched_order_id": auto_matched_order_id,
+        "evidence_url": evidence_url,
+        "inspection": inspection,
+        "live_gemini_call": True,
+        "paypal_capture_id": paypal_capture_id,
+        "auto_settled": auto_settled,
+        "auto_settle_error": auto_settle_error,
+        "message": msg,
+    }
+
+
+@app.get("/api/vision/evidence/{filename}")
+async def get_vision_evidence(filename: str):
+    if not re.fullmatch(r"[a-f0-9]{64}\.(png|jpg|jpeg|webp|gif)", filename.strip().lower()):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid evidence filename.")
+    clean_name = os.path.basename(filename.strip().lower())
+    file_path = os.path.join(EVIDENCE_DIR, clean_name)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evidence image not found.")
+    ext = clean_name.rsplit(".", 1)[-1]
+    media_type = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
+    return FileResponse(file_path, media_type=media_type)
+
+
+@app.post("/api/transactions/{tx_id}/capture")
+async def capture_authorized_transaction(
+    tx_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    x_idempotency_key: Optional[str] = Header(None, alias="PayPal-Request-Id"),
+):
+    """
+    Stage 5C Live PayPal Capture:
+    Captures an existing AUTHORIZED transaction's PayPal authorization via
+    POST /v2/payments/authorizations/{authorization_id}/capture.
+    """
+    clean_tx_id = tx_id.strip()
+    async with LEDGER_LOCK:
+        matching_tx = _find_tx_or_404(clean_tx_id)
+        if matching_tx.get("status") != "AUTHORIZED":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "InvalidTransactionState",
+                    "message": f"Transaction '{clean_tx_id}' must be in AUTHORIZED state to capture (current: {matching_tx.get('status')}).",
+                },
+            )
+        auth_id = matching_tx.get("paypal_auth_id")
+        if not auth_id or str(auth_id).startswith("AUTH_MOCK"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "MissingPayPalAuthorizationId",
+                    "message": f"Transaction '{clean_tx_id}' does not hold a valid PayPal authorization ID.",
+                },
+            )
+        dec_amount = Decimal(str(matching_tx["amount"])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        currency = str(matching_tx.get("currency", "USD")).strip().upper()
+        req_key = x_idempotency_key or (payload.get("idempotency_key") if payload else None) or f"cap-{clean_tx_id}-{auth_id}"
+
+    try:
+        cap_res = await paypal_client.capture_authorization_async(
+            authorization_id=str(auth_id),
+            amount=dec_amount,
+            currency=currency,
+            idempotency_key=req_key,
+        )
+    except PayPalConfigurationError as ce:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail={"error": "PayPalConfigurationError", "message": str(ce)})
+    except PayPalAuthError as ae:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"error": "PayPalAuthError", "message": str(ae)})
+    except PayPalTimeoutError as te:
+        raise HTTPException(status_code=status.HTTP_504_GATEWAY_TIMEOUT, detail={"error": "PayPalTimeoutError", "message": str(te)})
+    except PayPalCaptureError as pce:
+        code = pce.status_code if pce.status_code in (400, 401, 403, 404, 422, 429) else status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=code, detail={"error": "PayPalCaptureError", "message": str(pce), "error_data": pce.error_data})
+    except PayPalAPIError as pe:
+        code = pe.status_code if pe.status_code in (400, 401, 403, 404, 422, 429) else status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=code, detail={"error": "PayPalAPIError", "message": str(pe), "error_data": pe.error_data})
+
+    async with LEDGER_LOCK:
+        matching_tx = _find_tx_or_404(clean_tx_id)
+        matching_tx["status"] = "CAPTURED"
+        matching_tx["payment_status"] = "CAPTURED"
+        matching_tx["paypal_capture_id"] = cap_res.get("capture_id")
+        matching_tx["delivery_status"] = DeliveryState.DELIVERY_VERIFIED.value
+        matching_tx["captured_at"] = datetime.utcnow().isoformat()
+        matching_tx["capture_metadata"] = cap_res
+        _advance_tx_chain(matching_tx, "CAPTURED")
+        _persist_ledger_cache()
+
+    return {
+        "status": "CAPTURED",
+        "payment_status": "CAPTURED",
+        "transaction_id": clean_tx_id,
+        "paypal_auth_id": auth_id,
+        "paypal_capture_id": cap_res.get("capture_id"),
+        "capture_status": cap_res.get("status"),
+        "amount": float(dec_amount),
+        "currency": currency,
+        "live_call": True,
+        "message": f"Funds captured on PayPal Sandbox (Capture ID: {cap_res.get('capture_id')}).",
+    }
+
+
+@app.post("/api/transactions/{tx_id}/void")
+async def void_or_dispute_transaction(
+    tx_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    x_idempotency_key: Optional[str] = Header(None, alias="PayPal-Request-Id"),
+):
+    """
+    Live PayPal Authorization Void / Dispute Resolution:
+    - For AUTHORIZED funds (default): calls POST /v2/payments/authorizations/{authorization_id}/void.
+    - For CAPTURED funds or action='DISPUTE': calls POST /v1/customer/disputes.
+    """
+    clean_tx_id = tx_id.strip()
+    body = payload or {}
+    reason = str(body.get("reason") or "Damaged parcel / delivery verification failed").strip()
+    requested_action = str(body.get("action") or "").strip().upper()
+
+    async with LEDGER_LOCK:
+        matching_tx = _find_tx_or_404(clean_tx_id)
+        tx_status = matching_tx.get("status")
+        auth_id = matching_tx.get("paypal_auth_id")
+        capture_id = matching_tx.get("paypal_capture_id")
+        currency = str(matching_tx.get("currency", "USD")).strip().upper()
+        dec_amount = Decimal(str(matching_tx["amount"])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    use_dispute = requested_action == "DISPUTE" or (tx_status == "CAPTURED" and bool(capture_id))
+    if not use_dispute:
+        if tx_status != "AUTHORIZED" or not auth_id or str(auth_id).startswith("AUTH_MOCK"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "InvalidVoidTarget",
+                    "message": f"Transaction '{clean_tx_id}' requires an AUTHORIZED transaction with a genuine paypal_auth_id.",
+                },
+            )
+        req_key = x_idempotency_key or body.get("idempotency_key") or f"void-{clean_tx_id}-{auth_id}"
+        try:
+            void_res = await paypal_client.void_authorization(str(auth_id), idempotency_key=req_key)
+        except PayPalConfigurationError as ce:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail={"error": "PayPalConfigurationError", "message": str(ce)})
+        except PayPalAuthError as ae:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"error": "PayPalAuthError", "message": str(ae)})
+        except PayPalAPIError as pe:
+            code = pe.status_code if pe.status_code in (400, 401, 403, 404, 422, 429) else status.HTTP_502_BAD_GATEWAY
+            raise HTTPException(status_code=code, detail={"error": "PayPalVoidError", "message": str(pe), "error_data": pe.error_data})
+
+        async with LEDGER_LOCK:
+            matching_tx = _find_tx_or_404(clean_tx_id)
+            matching_tx["status"] = "VOIDED"
+            matching_tx["payment_status"] = "VOIDED"
+            matching_tx["delivery_status"] = "DISPUTED_AND_VOIDED"
+            matching_tx["dispute_reason"] = reason
+            matching_tx["void_metadata"] = void_res
+            _advance_tx_chain(matching_tx, "VOIDED")
+            _persist_ledger_cache()
+
+        return {
+            "status": "VOIDED",
+            "payment_status": "VOIDED",
+            "transaction_id": clean_tx_id,
+            "paypal_auth_id": auth_id,
+            "live_call": True,
+            "message": f"PayPal authorization {auth_id} voided on PayPal Sandbox. Escrow funds released back to buyer.",
+        }
+
+    # Captured -> file live PayPal customer dispute
+    target_pp_tx = str(capture_id or auth_id or "")
+    if not target_pp_tx:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "MissingPayPalTransactionId", "message": "Cannot file PayPal dispute without capture or authorization ID."},
+        )
+    try:
+        dispute_res = await paypal_client.file_dispute_async(
+            transaction_id=target_pp_tx,
+            reason=reason,
+            evidence=body.get("evidence") or matching_tx.get("vision_audit", {}),
+            amount=str(dec_amount),
+            currency=currency,
+            tracking_number=matching_tx.get("tracking_number"),
+            carrier_name=str(matching_tx.get("carrier") or "FEDEX").upper().replace(" ", "_"),
+        )
+    except PayPalConfigurationError as ce:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail={"error": "PayPalConfigurationError", "message": str(ce)})
+    except PayPalAuthError as ae:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"error": "PayPalAuthError", "message": str(ae)})
+    except PayPalAPIError as pe:
+        code = pe.status_code if pe.status_code in (400, 401, 403, 404, 422, 429) else status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(status_code=code, detail={"error": "PayPalDisputeError", "message": str(pe), "error_data": pe.error_data})
+
+    async with LEDGER_LOCK:
+        matching_tx = _find_tx_or_404(clean_tx_id)
+        matching_tx["status"] = "DISPUTED"
+        matching_tx["payment_status"] = "DISPUTED"
+        matching_tx["delivery_status"] = "DISPUTE_OPEN"
+        matching_tx["dispute_reason"] = reason
+        matching_tx["paypal_dispute_id"] = dispute_res.get("dispute_id")
+        matching_tx["dispute_metadata"] = dispute_res
+        _advance_tx_chain(matching_tx, "DISPUTED")
+        _persist_ledger_cache()
+
+    return {
+        "status": "DISPUTED",
+        "transaction_id": clean_tx_id,
+        "paypal_dispute_id": dispute_res.get("dispute_id"),
+        "dispute_status": dispute_res.get("status"),
+        "live_call": True,
+        "message": f"PayPal dispute filed (ID: {dispute_res.get('dispute_id')}).",
+    }
+
+
+@app.delete("/api/transactions/{tx_id}")
+async def delete_transaction(tx_id: str):
+    """Deletes an order from the active escrow ledger & persisted cache."""
+    clean_tx_id = tx_id.strip()
+    async with LEDGER_LOCK:
+        target = _find_tx_or_404(clean_tx_id)
+        removed_id = target.get("id", clean_tx_id)
+        TRANSACTIONS_LEDGER[:] = [
+            t
+            for t in TRANSACTIONS_LEDGER
+            if t.get("id") != removed_id and t.get("paypal_order_id") != clean_tx_id
+        ]
+        _persist_ledger_cache()
+
+    return {
+        "status": "DELETED",
+        "transaction_id": removed_id,
+        "message": f"Order {removed_id} removed from orders ledger.",
+    }
+
+
+@app.post("/api/agent/procure")
+async def gemini_agent_procure(payload: Dict[str, Any]):
+    """
+    Real Gemini AI Procurement Agent Endpoint:
+    1. Calls live Google Gemini API to parse the natural-language procurement request.
+    2. Evaluates the extracted purchase against OpenGuardrails + Spending Mandate.
+    3. When `execute=True` and guardrails approve, creates a real PayPal Orders v2 escrow order.
+    """
+    prompt = str(payload.get("prompt") or "").strip()
+    if not prompt:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "MissingPrompt", "message": "Field 'prompt' is required for Gemini agent procurement."},
+        )
+    execute = bool(payload.get("execute", True))
+    currency = str(payload.get("currency") or "USD").strip().upper()
+
+    try:
+        agent_result = vision_arbiter.analyze_procurement_prompt(
+            prompt_text=prompt,
+            allowed_categories=str(ACTIVE_MANDATE.get("allowed_categories", "")),
+            max_budget_inr=float(ACTIVE_MANDATE.get("max_budget", 55000.00)),
+        )
+    except GeminiConfigurationError as gce:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail={"error": "GeminiConfigurationError", "message": str(gce)})
+    except GeminiAPIError as gae:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail={"error": "GeminiAPIError", "message": str(gae)})
+
+    extracted = agent_result["analysis"]
+    item_name = str(extracted.get("item_name") or "Corporate Item")
+    category = str(extracted.get("category") or "electronics").strip().lower()
+    amount_inr = Decimal(str(extracted.get("estimated_amount_inr", 1000))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    merchant = str(extracted.get("merchant") or "Corporate Authorized Vendor")
+
+    if extracted.get("recommended_action") == "BLOCK":
+        return {
+            "status": "AGENT_BLOCKED",
+            "agent": agent_result,
+            "guardrail_status": "BLOCKED",
+            "guardrail_detail": {
+                "error": "AgentPolicyRejection",
+                "message": extracted.get("reasoning", "Gemini Agent rejected purchase under corporate mandate."),
+            },
+            "order": None,
+        }
+
+    req = TransactionValidationRequest(
+        item_name=item_name,
+        category=category,
+        amount=amount_inr,
+        merchant_name=merchant,
+        description=prompt,
+    )
+    try:
+        guardrail_res = evaluate_transaction_guardrails(req, record_metric=True)
+    except HTTPException as ge:
+        return {
+            "status": "GUARDRAIL_BLOCKED",
+            "agent": agent_result,
+            "guardrail_status": "BLOCKED",
+            "guardrail_detail": ge.detail,
+            "order": None,
+        }
+
+    if not execute:
+        return {
+            "status": "APPROVED_READY",
+            "agent": agent_result,
+            "guardrail_status": "APPROVED",
+            "guardrail_detail": guardrail_res,
+            "order": None,
+        }
+
+    order_amount = (amount_inr / Decimal("85.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if currency == "USD" else amount_inr
+    if order_amount < Decimal("1.00"):
+        order_amount = Decimal("1.00")
+
+    order_res = await procure_item(
+        {
+            "name": item_name,
+            "category": category,
+            "amount": str(order_amount),
+            "amount_inr": str(amount_inr),
+            "currency": currency,
+            "merchant": merchant,
+            "description": prompt[:120],
+        },
+        x_idempotency_key=payload.get("idempotency_key"),
+    )
+
+    return {
+        "status": "ORDER_CREATED",
+        "agent": agent_result,
+        "guardrail_status": "APPROVED",
+        "guardrail_detail": guardrail_res,
+        "order": order_res,
+    }
+
+
 @app.post("/api/reset-demo")
 async def reset_demo():
     async with LEDGER_LOCK:
@@ -3351,4 +4212,6 @@ async def reset_demo():
                 "created_at": datetime.utcnow().isoformat()
             }
         ]
+        _init_ledger_cryptographic_chains()
+        _persist_ledger_cache()
         return {"message": "Reset complete."}

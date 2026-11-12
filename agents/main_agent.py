@@ -29,16 +29,28 @@ class GeminiWatchdogAgent:
     def _init_gemini(self):
         if self.api_key:
             try:
-                import google.generativeai as genai
-                genai.configure(api_key=self.api_key)
-                # Feed APIMatic OpenAPI Function Declarations to Gemini
-                self.model = genai.GenerativeModel(
-                    "gemini-2.0-flash-exp",
-                    tools=self.apimatic_tools
-                )
-                print("[GeminiWatchdogAgent] Gemini 2.0 Flash initialized with APIMatic OpenAPI Verified Tooling.")
+                from google import genai
+                self.client = genai.Client(api_key=self.api_key)
+                self.model = "gemini-2.5-flash"
+                print("[GeminiWatchdogAgent] Google GenAI (gemini-2.5-flash) initialized with APIMatic OpenAPI Verified Tooling.")
             except Exception as e:
-                print(f"[GeminiWatchdogAgent] APIMatic tool registry active (offline deterministic mode): {e}")
+                self.client = None
+                print(f"[GeminiWatchdogAgent] GenAI init error: {e}")
+        else:
+            self.client = None
+
+    def run_natural_language_prompt(self, prompt_text: str) -> dict:
+        """Calls live Gemini API to parse natural language procurement into an order action and executes it via backend."""
+        if not getattr(self, "client", None):
+            return {"status": "ERROR", "error": "GEMINI_API_KEY is not configured."}
+        import httpx
+        backend_url = os.getenv("BACKEND_API_URL", "http://localhost:8000")
+        resp = httpx.post(
+            f"{backend_url}/api/agent/procure",
+            json={"prompt": prompt_text, "execute": True},
+            timeout=60.0,
+        )
+        return resp.json()
 
     def run_procurement_flow(
         self,

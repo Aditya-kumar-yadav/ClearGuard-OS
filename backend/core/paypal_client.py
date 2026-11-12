@@ -841,52 +841,264 @@ class PayPalOrdersClient:
         except httpx.RequestError as re:
             raise PayPalNetworkError(f"PayPal capture network error: {re}")
 
-    def file_dispute(self, order_id: str, reason: str, evidence: str) -> Dict[str, Any]:
+    async def capture_authorization_async(
+        self,
+        authorization_id: str,
+        amount: Union[Decimal, float, str],
+        currency: str = "USD",
+        idempotency_key: Optional[str] = None,
+        note_to_payer: str = "ClearGuard Escrow Protocol: Released upon verified delivery receipt."
+    ) -> Dict[str, Any]:
         """
-        Natively triggers PayPal Dispute API (/v1/customer/disputes).
-        Files a formal claim demanding escrow reversal due to verified carrier loss.
+        Asynchronously captures a genuine PayPal authorization (POST /v2/payments/authorizations/{id}/capture).
+        Never fabricates synthetic capture IDs.
         """
-        dispute_id = f"PP-D-{uuid.uuid4().hex[:12].upper()}"
+        if not authorization_id or not isinstance(authorization_id, str) or not authorization_id.strip():
+            raise PayPalValidationError("A valid, non-empty PayPal Authorization ID is required for capture.")
+
+        curr = str(currency or "USD").strip().upper()
+        if curr not in SUPPORTED_PAYPAL_CURRENCIES:
+            raise PayPalValidationError(f"Unsupported capture currency '{currency}'.")
+
+        if curr in ZERO_DECIMAL_CURRENCIES:
+            raw_dec = Decimal(str(amount))
+            if raw_dec != raw_dec.to_integral_value():
+                raise PayPalValidationError(f"Zero-decimal currency '{curr}' cannot have fractional amount '{amount}'.")
+            dec_amount = raw_dec.quantize(Decimal("1"))
+            formatted_amount = f"{dec_amount:.0f}"
+        else:
+            dec_amount = Decimal(str(amount)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            formatted_amount = f"{dec_amount:.2f}"
+
+        if dec_amount <= Decimal("0"):
+            raise PayPalValidationError(f"Capture amount must be > 0, received {dec_amount}")
+
+        auth_id = authorization_id.strip()
+        req_id = str(idempotency_key).strip() if idempotency_key and str(idempotency_key).strip() else str(uuid.uuid4())
+        token = await self.get_access_token()
+        url = f"{self.base_url}/v2/payments/authorizations/{auth_id}/capture"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "PayPal-Request-Id": req_id,
+            "Prefer": "return=representation",
+        }
+        payload = {
+            "amount": {"currency_code": curr, "value": formatted_amount},
+            "is_final_capture": True,
+            "note_to_payer": note_to_payer[:255],
+        }
+        client = await self.get_client()
+        try:
+            res = await client.post(url, headers=headers, json=payload)
+        except httpx.TimeoutException as te:
+            raise PayPalTimeoutError(f"PayPal capture timed out: {te}") from te
+        except httpx.NetworkError as ne:
+            raise PayPalNetworkError(f"PayPal capture network error: {ne}") from ne
+
+        if res.status_code in (200, 201):
+            data = res.json()
+            capture_id = data.get("id")
+            if not capture_id:
+                raise PayPalCaptureError("PayPal capture response missing genuine capture ID.", status_code=res.status_code, error_data=data)
+            return {
+                "capture_id": capture_id,
+                "status": data.get("status", "COMPLETED"),
+                "amount": data.get("amount", {}).get("value", formatted_amount),
+                "currency": data.get("amount", {}).get("currency_code", curr),
+                "final_capture": data.get("final_capture", True),
+                "create_time": data.get("create_time"),
+                "live_call": True,
+                "idempotency_key": req_id,
+                "request_payload": payload,
+                "response_payload": data,
+            }
+        err_json = res.json() if "application/json" in res.headers.get("content-type", "") else {}
+        raise PayPalCaptureError(
+            f"PayPal capture call failed with HTTP {res.status_code}: {err_json.get('message', res.text)}",
+            status_code=res.status_code,
+            error_data=err_json,
+        )
+
+    async def void_authorization(
+        self,
+        authorization_id: str,
+        idempotency_key: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Asynchronously voids an uncaptured PayPal authorization (POST /v2/payments/authorizations/{id}/void),
+        releasing the hold back to the buyer immediately.
+        """
+        if not authorization_id or not isinstance(authorization_id, str) or not authorization_id.strip():
+            raise PayPalValidationError("A valid, non-empty PayPal Authorization ID is required to void.")
+
+        auth_id = authorization_id.strip()
+        req_id = str(idempotency_key).strip() if idempotency_key and str(idempotency_key).strip() else str(uuid.uuid4())
+        token = await self.get_access_token()
+        url = f"{self.base_url}/v2/payments/authorizations/{auth_id}/void"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "PayPal-Request-Id": req_id,
+            "Prefer": "return=representation",
+        }
+        client = await self.get_client()
+        try:
+            res = await client.post(url, headers=headers)
+        except httpx.TimeoutException as te:
+            raise PayPalTimeoutError(f"PayPal void_authorization timed out: {te}") from te
+        except httpx.NetworkError as ne:
+            raise PayPalNetworkError(f"PayPal void_authorization network error: {ne}") from ne
+
+        if res.status_code in (200, 201, 204):
+            data = res.json() if res.content and "application/json" in res.headers.get("content-type", "") else {}
+            return {
+                "authorization_id": data.get("id", auth_id),
+                "status": data.get("status", "VOIDED"),
+                "live_call": True,
+                "idempotency_key": req_id,
+                "response_payload": data,
+            }
+        err_json = res.json() if "application/json" in res.headers.get("content-type", "") else {}
+        raise PayPalAPIError(
+            f"PayPal void_authorization failed with HTTP {res.status_code}: {err_json.get('message', res.text)}",
+            status_code=res.status_code,
+            error_data=err_json,
+        )
+
+    async def file_dispute_async(
+        self,
+        transaction_id: str,
+        reason: str,
+        evidence: str,
+        amount: Union[Decimal, float, str] = "10.00",
+        currency: str = "USD",
+        tracking_number: Optional[str] = None,
+        carrier_name: str = "FEDEX",
+    ) -> Dict[str, Any]:
+        """
+        Calls real PayPal Disputes v1 API (POST /v1/customer/disputes) using genuine OAuth credentials.
+        Raises typed PayPal errors if credentials are missing or PayPal rejects the dispute call.
+        """
+        if not self.is_configured():
+            raise PayPalConfigurationError("PayPal client credentials are not configured.")
+
+        curr = str(currency or "USD").strip().upper()
+        dec_amount = Decimal(str(amount)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        token = await self.get_access_token()
+        url = f"{self.base_url}/v1/customer/disputes"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
         payload = {
             "disputed_transactions": [
                 {
-                    "seller_transaction_id": order_id
+                    "seller_transaction_id": transaction_id,
                 }
             ],
-            "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
+            "reason": reason or "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
             "dispute_amount": {
-                "currency_code": "USD",
-                "value": "578.00"
+                "currency_code": curr,
+                "value": f"{dec_amount:.2f}",
             },
             "dispute_life_cycle_stage": "INQUIRY",
+            "messages": [
+                {
+                    "posted_by": "BUYER",
+                    "content": evidence[:2000],
+                }
+            ],
             "evidence": [
                 {
                     "evidence_type": "PROOF_OF_DAMAGE",
                     "evidence_info": {
                         "tracking_info": [
                             {
-                                "carrier_name": "BlueDart Logistics",
-                                "tracking_number": f"TRK{uuid.uuid4().hex[:10].upper()}"
+                                "carrier_name": carrier_name,
+                                "tracking_number": tracking_number or "UNKNOWN",
                             }
                         ]
                     },
-                    "notes": evidence
+                    "notes": evidence[:2000],
                 }
-            ]
+            ],
         }
+        client = await self.get_client()
+        try:
+            res = await client.post(url, headers=headers, json=payload)
+        except httpx.TimeoutException as te:
+            raise PayPalTimeoutError(f"PayPal file_dispute timed out: {te}") from te
+        except httpx.NetworkError as ne:
+            raise PayPalNetworkError(f"PayPal file_dispute network error: {ne}") from ne
 
-        return {
-            "dispute_id": dispute_id,
-            "status": "UNDER_REVIEW",
-            "request_payload": payload,
-            "response_payload": {
+        if res.status_code in (200, 201):
+            data = res.json()
+            dispute_id = data.get("dispute_id") or data.get("id")
+            return {
                 "dispute_id": dispute_id,
-                "status": "UNDER_REVIEW",
-                "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
-                "dispute_life_cycle_stage": "INQUIRY",
-                "dispute_outcome": {
-                    "outcome_code": "RESOLVED_BUYER_FAVOUR"
-                }
+                "status": data.get("status", "OPEN"),
+                "live_call": True,
+                "request_payload": payload,
+                "response_payload": data,
             }
+        err_json = res.json() if "application/json" in res.headers.get("content-type", "") else {}
+        raise PayPalAPIError(
+            f"PayPal Disputes v1 failed with HTTP {res.status_code}: {err_json.get('message', res.text)}",
+            status_code=res.status_code,
+            error_data=err_json,
+        )
+
+    def file_dispute(self, order_id: str, reason: str, evidence: str) -> Dict[str, Any]:
+        """
+        Synchronous wrapper for real PayPal Disputes v1 API (POST /v1/customer/disputes).
+        Never fabricates fake dispute outcomes.
+        """
+        if not self.is_configured():
+            raise PayPalConfigurationError("PayPal client credentials are not configured.")
+
+        token = self.get_access_token_sync()
+        url = f"{self.base_url}/v1/customer/disputes"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
         }
+        payload = {
+            "disputed_transactions": [
+                {
+                    "seller_transaction_id": order_id,
+                }
+            ],
+            "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
+            "dispute_life_cycle_stage": "INQUIRY",
+            "messages": [
+                {
+                    "posted_by": "BUYER",
+                    "content": f"{reason}: {evidence}"[:2000],
+                }
+            ],
+        }
+        try:
+            with httpx.Client(timeout=httpx.Timeout(10.0)) as client:
+                res = client.post(url, headers=headers, json=payload)
+        except httpx.TimeoutException as te:
+            raise PayPalTimeoutError(f"PayPal file_dispute timed out: {te}") from te
+        except httpx.RequestError as re:
+            raise PayPalNetworkError(f"PayPal file_dispute network error: {re}") from re
+
+        if res.status_code in (200, 201):
+            data = res.json()
+            return {
+                "dispute_id": data.get("dispute_id") or data.get("id"),
+                "status": data.get("status", "OPEN"),
+                "live_call": True,
+                "request_payload": payload,
+                "response_payload": data,
+            }
+        err_json = res.json() if "application/json" in res.headers.get("content-type", "") else {}
+        raise PayPalAPIError(
+            f"PayPal Disputes v1 failed with HTTP {res.status_code}: {err_json.get('message', res.text)}",
+            status_code=res.status_code,
+            error_data=err_json,
+        )
 

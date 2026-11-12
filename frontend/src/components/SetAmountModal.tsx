@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, DollarSign, Sliders, Check, ArrowRight, ShieldCheck } from "lucide-react";
+import { X, DollarSign, Sliders, Check, ArrowRight, ShieldCheck, Loader2 } from "lucide-react";
 import confetti from "canvas-confetti";
 
 interface SetAmountModalProps {
@@ -97,8 +97,8 @@ export const SetAmountModal: React.FC<SetAmountModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-      <div className="surface-card max-w-md w-full p-6 text-white font-sans shadow-2xl space-y-5 border border-[#262833]">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-5 bg-black/85 overscroll-contain">
+      <div className="surface-card max-w-md w-full max-h-[92vh] overflow-y-auto p-6 text-white font-sans shadow-2xl space-y-5 border border-[#262833]">
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-[#21232d] pb-4">
           <div className="flex items-center space-x-2.5">
@@ -378,6 +378,11 @@ export const SetAmountModal: React.FC<SetAmountModalProps> = ({
                 <>
                   <Check className="w-4 h-4 text-black" />
                   <span>Applied!</span>
+                </>
+              ) : loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 text-black animate-spin" />
+                  <span>Saving...</span>
                 </>
               ) : (
                 <>

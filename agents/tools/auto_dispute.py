@@ -39,22 +39,22 @@ def file_paypal_dispute(
     dispute_reason: str,
     evidence_logs: str,
     amount: float = 48000.0,
-    currency: str = "INR"
+    currency: str = "USD",
+    transaction_id: str = "",
 ) -> Dict[str, Any]:
     """
     AUTO-DISPUTE MCP TOOL:
-    Triggers PayPal Disputes API natively to officially open a claim
-    and demand a refund when a package is detected as Lost.
+    Triggers PayPal Disputes API v1 natively to open a real buyer claim.
+    Never invents fake resolved disputes when credentials or PayPal calls fail.
     """
-    dispute_id = f"PP-D-{uuid.uuid4().hex[:12].upper()}"
-
-    # Notify backend webhook to flip status in AG Grid in real-time
+    # Notify backend webhook to sync ledger telemetry
     try:
         with httpx.Client(timeout=10.0) as client:
             webhook_payload = {
-                "event_type": "REPORT_DISPUTE",
+                "event_type": "PAYMENT.AUTHORIZATION.VOIDED",
                 "order_id": order_id,
-                "evidence": evidence_logs
+                "transaction_id": transaction_id or order_id,
+                "evidence": evidence_logs,
             }
             body_str = json.dumps(webhook_payload)
             headers = _build_verified_webhook_headers(body_str)
@@ -62,38 +62,57 @@ def file_paypal_dispute(
     except Exception as e:
         print(f"[AutoDisputeTool] Webhook broadcast notice: {e}")
 
-    # Attempt live PayPal Dispute API call if credentials present
-    if PAYPAL_CLIENT_ID and "YOUR_" not in PAYPAL_CLIENT_ID:
-        try:
-            with httpx.Client(timeout=10.0) as client:
-                token_res = client.post(
-                    f"{PAYPAL_API_BASE}/v1/oauth2/token",
-                    data={"grant_type": "client_credentials"},
-                    auth=(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET)
-                )
-                if token_res.status_code == 200:
-                    token = token_res.json()["access_token"]
-                    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-                    payload = {
-                        "disputed_transaction": {"seller_transaction_id": order_id},
-                        "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
-                        "dispute_amount": {"currency_code": currency, "value": f"{amount:.2f}"},
-                        "note": f"Autonomous AI Claim: {dispute_reason}. Evidence: {evidence_logs}"
-                    }
-                    disp_call = client.post(f"{PAYPAL_API_BASE}/v1/customer/disputes", json=payload, headers=headers)
-                    if disp_call.status_code in (200, 201):
-                        return disp_call.json()
-        except Exception as e:
-            print(f"[AutoDisputeTool] Live Dispute API error: {e}")
+    if not PAYPAL_CLIENT_ID or not PAYPAL_CLIENT_SECRET or "YOUR_" in PAYPAL_CLIENT_ID:
+        return {
+            "status": "CONFIGURATION_ERROR",
+            "live_call": False,
+            "order_id": order_id,
+            "error": "PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET are required to file a real PayPal Dispute.",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
 
-    return {
-        "status": "DISPUTED",
-        "dispute_id": dispute_id,
-        "order_id": order_id,
-        "lifecycle_stage": "INQUIRY",
-        "dispute_reason": dispute_reason,
-        "evidence_attached": evidence_logs,
-        "demanded_action": "FULL_REFUND_OF_AUTHORIZED_ESCROW",
-        "timestamp": datetime.utcnow().isoformat()
-    }
+    try:
+        with httpx.Client(timeout=20.0) as client:
+            token_res = client.post(
+                f"{PAYPAL_API_BASE}/v1/oauth2/token",
+                data={"grant_type": "client_credentials"},
+                auth=(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET),
+            )
+            if token_res.status_code != 200:
+                return {
+                    "status": "PAYPAL_AUTH_ERROR",
+                    "live_call": True,
+                    "order_id": order_id,
+                    "error": f"PayPal OAuth failed ({token_res.status_code}): {token_res.text}",
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            token = token_res.json()["access_token"]
+            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+            payload = {
+                "disputed_transaction": {"seller_transaction_id": transaction_id or order_id},
+                "reason": "MERCHANDISE_OR_SERVICE_NOT_RECEIVED",
+                "dispute_amount": {"currency_code": currency, "value": f"{amount:.2f}"},
+                "note": f"Autonomous AI Claim: {dispute_reason}. Evidence: {evidence_logs}",
+            }
+            disp_call = client.post(f"{PAYPAL_API_BASE}/v1/customer/disputes", json=payload, headers=headers)
+            if disp_call.status_code in (200, 201):
+                data = disp_call.json()
+                data["live_call"] = True
+                return data
+            return {
+                "status": "PAYPAL_DISPUTE_FAILED",
+                "live_call": True,
+                "order_id": order_id,
+                "http_status": disp_call.status_code,
+                "error": disp_call.text,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+    except Exception as e:
+        return {
+            "status": "DISPUTE_NETWORK_ERROR",
+            "live_call": True,
+            "order_id": order_id,
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat(),
+        }
 

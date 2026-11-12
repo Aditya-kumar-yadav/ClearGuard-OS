@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Shield, Lock, CheckCircle2, X, ExternalLink, Key, UserCheck } from "lucide-react";
+import { PayPalLogo } from "./BrandLogos";
 
 interface PayPalAuthModalProps {
   isOpen: boolean;
@@ -21,49 +22,62 @@ export const PayPalAuthModal: React.FC<PayPalAuthModalProps> = ({
   const [email, setEmail] = useState("buyer-corp@personal.example.com");
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
-  const [activeTab, setActiveTab] = useState<"instant" | "custom">("instant");
+  const [activeTab, setActiveTab] = useState<"instant" | "custom">("custom");
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const handleInstantConnect = async () => {
     setLoading(true);
-    await onConnect({
-      email: email || "buyer-corp@personal.example.com",
-      payer_id: "PAYER_99A1B2C3",
-      account_type: "PERSONAL_SANDBOX",
-      status: "VERIFIED",
-      balance: "₹2,50,000.00",
-      delegation_approved: true,
-    });
-    setLoading(false);
-    onClose();
+    setErrorMsg(null);
+    try {
+      await onConnect({
+        email: email || "buyer-corp@personal.example.com",
+        payer_id: "PAYER_99A1B2C3",
+        account_type: "PERSONAL_SANDBOX",
+        status: "VERIFIED",
+        balance: "₹2,50,000.00",
+        delegation_approved: true,
+      });
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err?.message || "Could not link PayPal account.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCustomConnect = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    await onConnect({
-      email: email,
-      client_id: clientId,
-      client_secret: clientSecret,
-      account_type: "DEVELOPER_SANDBOX",
-      status: "VERIFIED",
-      balance: "₹2,50,000.00",
-      delegation_approved: true,
-    });
-    setLoading(false);
-    onClose();
+    setErrorMsg(null);
+    try {
+      await onConnect({
+        email: email,
+        client_id: clientId,
+        client_secret: clientSecret,
+        account_type: "DEVELOPER_SANDBOX",
+        status: "VERIFIED",
+        balance: "₹2,50,000.00",
+        delegation_approved: true,
+      });
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err?.message || "PayPal Sandbox OAuth verification failed.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-      <div className="bg-black border-2 border-white rounded-none max-w-md w-full p-6 shadow-2xl text-white">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-5 bg-black/85 overscroll-contain">
+      <div className="bg-black border-2 border-white rounded-none max-w-md w-full max-h-[92vh] overflow-y-auto p-6 shadow-2xl text-white">
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b-2 border-zinc-800 pb-4 mb-5">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-white text-black flex items-center justify-center font-bold">
-              PP
+            <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+              <PayPalLogo className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-base font-extrabold uppercase tracking-tight text-white">
@@ -238,9 +252,15 @@ export const PayPalAuthModal: React.FC<PayPalAuthModalProps> = ({
                   disabled={loading}
                   className="w-full py-3 bg-white hover:bg-zinc-200 text-black font-extrabold uppercase tracking-wide transition-colors mt-2"
                 >
-                  Save Sandbox Credentials
+                  {loading ? "Verifying OAuth with PayPal..." : "Verify & Save Sandbox Credentials"}
                 </button>
               </form>
+            )}
+
+            {errorMsg && (
+              <div className="border border-red-500/50 bg-red-950/40 p-2.5 text-xs font-mono text-red-300">
+                {errorMsg}
+              </div>
             )}
 
             <div className="pt-2 border-t border-zinc-800 text-[11px] text-zinc-500 flex items-center justify-between font-sans">

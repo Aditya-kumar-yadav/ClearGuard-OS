@@ -44,7 +44,7 @@ export async function safeFetch<T = any>(
   options: FetcherOptions = {}
 ): Promise<ApiResponse<T>> {
   const {
-    timeoutMs = 6000,
+    timeoutMs = 20000,
     idempotencyKey,
     headers = {},
     ...rest
@@ -78,8 +78,24 @@ export async function safeFetch<T = any>(
       data = { raw: text };
     }
 
-    // Handle Unhappy Paths (500, 502, 503, 504)
+    const backendMsg =
+      data?.detail?.reason ||
+      data?.detail?.message ||
+      data?.message ||
+      (typeof data?.detail === "string" ? data.detail : undefined) ||
+      data?.error;
+
+    // Only treat unstructured 5xx crashes as Network Anomaly; surface structured 503/502 backend messages cleanly
     if (res.status === 500 || res.status === 502 || res.status === 503 || res.status === 504) {
+      if (backendMsg) {
+        return {
+          ok: false,
+          status: res.status,
+          data,
+          error: backendMsg,
+          anomaly: false,
+        };
+      }
       const anomalyMessage = "NETWORK ANOMALY: TRANSACTION SAFELY ABORTED.";
       emitNetworkAnomaly(anomalyMessage);
 
@@ -96,7 +112,7 @@ export async function safeFetch<T = any>(
       ok: res.ok,
       status: res.status,
       data,
-      error: res.ok ? undefined : data?.detail?.reason || data?.detail?.message || data?.error,
+      error: res.ok ? undefined : backendMsg,
     };
   } catch (err: any) {
     clearTimeout(timeoutId);

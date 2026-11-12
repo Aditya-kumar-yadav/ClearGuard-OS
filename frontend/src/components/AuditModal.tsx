@@ -23,6 +23,8 @@ interface AuditModalProps {
   onClose: () => void;
   tx: any;
   formatMoney: (amount: number | undefined | null) => string;
+  initialTab?: "maker_checker" | "vision" | "paypal" | "hash_chain";
+  savedPhotoUrl?: string;
 }
 
 export const AuditModal: React.FC<AuditModalProps> = ({
@@ -30,14 +32,22 @@ export const AuditModal: React.FC<AuditModalProps> = ({
   onClose,
   tx,
   formatMoney,
+  initialTab = "hash_chain",
+  savedPhotoUrl,
 }) => {
-  const [activeTab, setActiveTab] = useState<"maker_checker" | "vision" | "paypal" | "hash_chain">("hash_chain");
+  const [activeTab, setActiveTab] = useState<"maker_checker" | "vision" | "paypal" | "hash_chain">(initialTab);
   const [copied, setCopied] = useState(false);
   const [auditData, setAuditData] = useState<any>(null);
   const [auditLoading, setAuditLoading] = useState(false);
   const [tamperLoading, setTamperLoading] = useState(false);
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialTab || "hash_chain");
+    }
+  }, [isOpen, initialTab, tx?.id]);
 
   useEffect(() => {
     if (isOpen && tx?.id) {
@@ -94,7 +104,50 @@ export const AuditModal: React.FC<AuditModalProps> = ({
   const isPendingApproval = tx.status === "ORDER_CREATED" || tx.payment_status === "PENDING_BUYER_APPROVAL";
 
   const mc = tx.maker_checker_audit || tx.maker_checker?.checker || {};
-  const vision = tx.vision_audit || {};
+  const policyChecksList: string[] = Array.isArray(mc.policy_checks)
+    ? mc.policy_checks
+    : typeof mc.policy_checks === "string" && mc.policy_checks.trim()
+    ? mc.policy_checks.trim().split(/\s+/)
+    : ["BUDGET_CAP_VALIDATED", "CATEGORY_WHITELISTED", "HMAC_SHA256_SIGNED"];
+  const rawVision = tx.vision_audit || {};
+  const visionAnalysis = rawVision.analysis || rawVision;
+  const visionOcr = visionAnalysis.ocr_extracted || rawVision.ocr_extracted || {};
+  const rawReasons = visionAnalysis.vision_reasoning ?? rawVision.vision_reasoning;
+  const visionReasons: string[] = Array.isArray(rawReasons)
+    ? rawReasons
+    : typeof rawReasons === "string" && rawReasons.trim()
+    ? [rawReasons.trim()]
+    : isBlocked
+    ? [
+        "Pre-purchase OpenGuardrails rejection — no PayPal order or delivery shipment was created.",
+        "Vision POD audit does not run on blocked items because zero escrow or physical delivery occurred.",
+      ]
+    : [
+        "Payment authorized via PayPal Orders v2 authorization hold.",
+        "Awaiting physical courier drop-off POD photograph for Gemini Vision analysis.",
+      ];
+  const rawEvidencePath = rawVision.evidence_url || tx.vision_evidence_url;
+  const resolvedEvidenceUrl =
+    savedPhotoUrl ||
+    (rawEvidencePath
+      ? String(rawEvidencePath).startsWith("http")
+        ? String(rawEvidencePath)
+        : `${API_BASE}${rawEvidencePath}`
+      : undefined);
+  const visionVerdict = visionAnalysis.verdict || rawVision.verdict;
+  const visionCondition = visionAnalysis.condition || rawVision.condition;
+  const visionIntegrity =
+    typeof visionAnalysis.integrity_score === "number"
+      ? visionAnalysis.integrity_score
+      : typeof rawVision.integrity_score === "number"
+      ? rawVision.integrity_score
+      : null;
+  const visionDeformation =
+    typeof visionAnalysis.deformation_score === "number"
+      ? visionAnalysis.deformation_score
+      : typeof rawVision.deformation_score === "number"
+      ? rawVision.deformation_score
+      : null;
   const sig = mc.cryptographic_signature || tx.maker_checker?.checker?.cryptographic_signature;
 
   const handleCopySig = () => {
@@ -105,7 +158,7 @@ export const AuditModal: React.FC<AuditModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 overscroll-contain">
       <div className="surface-card max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden text-white font-sans shadow-2xl border border-[#272935]">
         {/* Modal Top Header */}
         <div className="p-5 border-b border-[#1f212a] flex items-start justify-between gap-4 bg-[#0d0e12]">
@@ -374,17 +427,42 @@ export const AuditModal: React.FC<AuditModalProps> = ({
                   </div>
                 </div>
 
+                {/* Explicit Pre-Purchase Rejection Breakdown */}
+                {(isBlocked || mc.approved === false) && (
+                  <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/35 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-rose-300 uppercase tracking-wide flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                        <span>Halted Pre-Checkout — Not Audited for Delivery or Added to Cart</span>
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-200 border border-rose-500/30">
+                        403 BLOCKED
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-rose-100 leading-relaxed">
+                      {tx.block_reason || mc.reason || "Blocked by OpenGuardrails category/budget mandate."}
+                    </p>
+                    <p className="text-[10px] font-mono text-rose-300/85">
+                      Stage Stopped: OpenGuardrails Tier 1/2 + Maker-Checker Gate &rarr; 0 PayPal orders created, $0 escrowed, no shipping/Vision POD queue.
+                    </p>
+                  </div>
+                )}
+
                 {/* Policy Checks Evaluated */}
                 <div className="pt-2 border-t border-[#1c1e27] space-y-1.5">
                   <span className="text-[10px] font-mono text-zinc-500 uppercase block">
                     Invariants Evaluated:
                   </span>
                   <div className="flex flex-wrap gap-1.5">
-                    {(mc.policy_checks || ["BUDGET_CAP_VALIDATED", "CATEGORY_WHITELISTED", "HMAC_SHA256_SIGNED"]).map(
+                    {policyChecksList.map(
                       (check: string, idx: number) => (
                         <span
                           key={idx}
-                          className="px-2 py-0.5 bg-[#0f1015] border border-[#222430] rounded text-[10px] font-mono text-zinc-300"
+                          className={`px-2 py-0.5 border rounded text-[10px] font-mono ${
+                            isBlocked || mc.approved === false
+                              ? "bg-rose-950/40 border-rose-500/30 text-rose-200"
+                              : "bg-[#0f1015] border-[#222430] text-zinc-300"
+                          }`}
                         >
                           &bull; {check}
                         </span>
@@ -422,38 +500,132 @@ export const AuditModal: React.FC<AuditModalProps> = ({
           {/* ========================================================= */}
           {activeTab === "vision" && (
             <div className="space-y-4">
+              {/* Saved Evidence Photo + Order Details Summary */}
               <div className="bg-[#14151c] border border-[#232532] rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="font-bold text-white flex items-center text-xs">
-                    <Eye className="w-3.5 h-3.5 mr-1.5 text-amber-400" />
-                    Physical Proof-of-Delivery Inspection
+                    <Eye className="w-3.5 h-3.5 mr-1.5 text-[#00d084]" />
+                    Saved Proof-of-Delivery &amp; Order Details
                   </span>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                    vision.verdict === "VERIFIED_INTACT"
+                    visionAnalysis.recommended_action === "CAPTURE_ESCROW" || visionVerdict === "VERIFIED_INTACT"
                       ? "bg-[#13241b] text-[#00d084] border border-[#1b3d2b]"
-                      : vision.verdict === "CRITICAL_DAMAGE_DETECTED"
-                      ? "bg-[#281f12] text-amber-300 border border-amber-800/50"
+                      : visionVerdict === "CRITICAL_DAMAGE_DETECTED" || visionAnalysis.recommended_action === "FILE_PAYPAL_DISPUTE"
+                      ? "bg-rose-950/60 text-rose-300 border border-rose-800/60"
                       : "bg-[#122230] text-sky-300 border border-sky-800/50"
                   }`}>
-                    {vision.verdict || "AWAITING_PHYSICAL_DELIVERY"}
+                    {visionVerdict || "AWAITING_PHYSICAL_DELIVERY"}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 pt-1">
+                {resolvedEvidenceUrl && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div className="bg-[#0b0c10] border border-[#222532] rounded-xl p-2 flex flex-col items-center justify-center gap-1.5">
+                      <a
+                        href={resolvedEvidenceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full h-44 rounded-lg overflow-hidden bg-black/50 flex items-center justify-center border border-white/5 hover:border-[#00d084]/50 transition-colors"
+                        title="Open full-size saved POD photo"
+                      >
+                        <img
+                          src={resolvedEvidenceUrl}
+                          alt={tx.item_name || tx.id}
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      </a>
+                      <div className="w-full flex items-center justify-between text-[10px] font-mono text-zinc-400 px-1">
+                        <span>{rawVision.model || "Gemini Vision POD"}</span>
+                        <span>{tx.vision_inspected_at ? String(tx.vision_inspected_at).slice(0, 16).replace("T", " ") : "Saved"}</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#0f1015] border border-[#20222c] rounded-xl p-3 space-y-1.5 text-[11px] font-mono">
+                      <div className="flex justify-between gap-2">
+                        <span className="text-zinc-500">Order ID:</span>
+                        <span className="text-white font-semibold truncate">{tx.id}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-zinc-500">Item:</span>
+                        <span className="text-zinc-200 truncate text-right" title={tx.item_name}>{tx.item_name}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-zinc-500">Merchant:</span>
+                        <span className="text-zinc-300 truncate">{tx.merchant_name || "Vendor"}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-zinc-500">Amount:</span>
+                        <span className="text-[#00d084] font-bold">{formatMoney(tx.amount)}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-zinc-500">Escrow Status:</span>
+                        <span className="text-white font-semibold">{tx.status}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-zinc-500">PayPal Order:</span>
+                        <span className="text-sky-300 truncate">{tx.paypal_order_id || "—"}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-zinc-500">{tx.paypal_capture_id ? "Capture ID:" : "Auth ID:"}</span>
+                        <span className="text-[#00d084] truncate">{tx.paypal_capture_id || tx.paypal_auth_id || "—"}</span>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span className="text-zinc-500">Tracking:</span>
+                        <span className="text-zinc-300 truncate">{tx.tracking_number || visionOcr.tracking_number || "Pending"}</span>
+                      </div>
+                      {(tx.photo_evidence_hash || rawVision.photo_sha256) && (
+                        <div className="pt-1 border-t border-white/5 flex justify-between gap-2">
+                          <span className="text-zinc-500 shrink-0">Photo SHA-256:</span>
+                          <span className="text-zinc-400 truncate" title={tx.photo_evidence_hash || rawVision.photo_sha256}>
+                            {(tx.photo_evidence_hash || rawVision.photo_sha256).slice(0, 18)}...
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
                   <div className="p-3 bg-[#0f1015] rounded-lg border border-[#20222c] space-y-1">
-                    <span className="text-[10px] font-mono text-zinc-500 block">PACKAGE CONDITION</span>
-                    <span className="text-xs font-bold text-white">{vision.condition || "IN_TRANSIT"}</span>
+                    <span className="text-[10px] font-mono text-zinc-500 block">INTEGRITY / CONDITION</span>
+                    <span className="text-xs font-bold text-white block truncate">
+                      {isBlocked
+                        ? "Skipped • Blocked Pre-Checkout"
+                        : `${visionIntegrity !== null ? `${Math.round(visionIntegrity * 100)}%` : "—"} • ${visionCondition || "IN_TRANSIT"}`}
+                    </span>
+                  </div>
+                  <div className="p-3 bg-[#0f1015] rounded-lg border border-[#20222c] space-y-1">
+                    <span className="text-[10px] font-mono text-zinc-500 block">ITEM / ORDER MATCH</span>
+                    <span className={`text-xs font-bold block truncate ${
+                      isBlocked || visionAnalysis.item_matches_order === false || visionAnalysis.order_no_match_status === "MISMATCHED"
+                        ? "text-rose-400"
+                        : "text-[#00d084]"
+                    }`}>
+                      {isBlocked
+                        ? "Not Added to Cart (403)"
+                        : visionAnalysis.detected_item || visionAnalysis.order_no_match_status || "Matched"}
+                    </span>
                   </div>
                   <div className="p-3 bg-[#0f1015] rounded-lg border border-[#20222c] space-y-1">
                     <span className="text-[10px] font-mono text-zinc-500 block">TAMPER TAPE SEAL</span>
                     <span className={`text-xs font-bold ${
-                      vision.ocr_extracted?.tamper_tape_intact === true
+                      isBlocked
+                        ? "text-rose-300"
+                        : visionOcr?.tamper_tape_intact === true
                         ? "text-[#00d084]"
-                        : vision.ocr_extracted?.tamper_tape_intact === false
+                        : visionOcr?.tamper_tape_intact === false
                         ? "text-rose-400"
                         : "text-zinc-400"
                     }`}>
-                      {vision.ocr_extracted?.tamper_tape_intact === true ? "100% INTACT & SEALED" : vision.ocr_extracted?.tamper_tape_intact === false ? "RUPTURED / BREACHED" : "Awaiting Drop-off"}
+                      {isBlocked
+                        ? "No Shipment Created"
+                        : visionOcr?.tamper_tape_intact === true
+                        ? "100% INTACT & SEALED"
+                        : visionOcr?.tamper_tape_intact === false
+                        ? "RUPTURED / BREACHED"
+                        : visionDeformation !== null
+                        ? `${Math.round(visionDeformation * 100)}% Deformation`
+                        : "Awaiting Drop-off"}
                     </span>
                   </div>
                 </div>
@@ -464,10 +636,7 @@ export const AuditModal: React.FC<AuditModalProps> = ({
                     Gemini Vision Telematics Log:
                   </span>
                   <div className="space-y-1.5 font-mono text-[11px] text-zinc-300 bg-black/40 p-3 rounded-lg border border-[#21232d]">
-                    {(vision.vision_reasoning || [
-                      "Payment authorized via PayPal Orders v2 authorization hold.",
-                      "Awaiting physical courier drop-off POD photograph for Gemini Vision analysis."
-                    ]).map((r: string, idx: number) => (
+                    {visionReasons.map((r: string, idx: number) => (
                       <div key={idx} className="flex items-start space-x-2">
                         <span className="text-[#00d084]">&gt;</span>
                         <span>{r}</span>
@@ -492,11 +661,17 @@ export const AuditModal: React.FC<AuditModalProps> = ({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-zinc-500">Authorization Intent:</span>
-                    <span className="text-[#00d084] font-bold">AUTHORIZE (Zero upfront payout)</span>
+                    {isBlocked ? (
+                      <span className="text-rose-400 font-bold">BLOCKED BEFORE DISPATCH ($0 Reserved)</span>
+                    ) : (
+                      <span className="text-[#00d084] font-bold">AUTHORIZE (Zero upfront payout)</span>
+                    )}
                   </div>
                   <div className="flex justify-between">
                     <span className="text-zinc-500">PayPal Order ID:</span>
-                    <span className="text-sky-400 font-bold">{tx.paypal_order_id || "None (Pre-purchase blocked)"}</span>
+                    <span className={`font-bold ${isBlocked ? "text-rose-300" : "text-sky-400"}`}>
+                      {tx.paypal_order_id || "None (Pre-purchase blocked — not added to cart)"}
+                    </span>
                   </div>
                   {tx.paypal_auth_id && (
                     <div className="flex justify-between">
