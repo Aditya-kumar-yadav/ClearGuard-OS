@@ -302,35 +302,35 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-5 bg-black/80 overscroll-contain"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-5 bg-slate-900/35 backdrop-blur-sm overscroll-contain"
       onClick={onClose}
     >
       <div
-        className="relative bg-[#0c0e13] border border-white/[0.09] rounded-3xl max-w-xl w-full max-h-[92vh] flex flex-col overflow-hidden text-white font-sans shadow-[0_24px_60px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.06)]"
+        className="relative surface-card bg-white border border-[#ece8f8] rounded-3xl max-w-xl w-full max-h-[92vh] flex flex-col overflow-hidden text-slate-900 font-sans shadow-2xl shadow-violet-950/15"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Lightweight Ambient Radial Highlight (zero expensive GPU blur pass) */}
+        {/* Subtle Ambient Lilac Top Glow */}
         <div
           className="pointer-events-none absolute inset-0"
-          style={{ background: "radial-gradient(circle at 88% -8%, rgba(30,215,96,0.12), transparent 46%)" }}
+          style={{ background: "radial-gradient(circle at 88% -8%, rgba(124,58,237,0.08), transparent 46%)" }}
         />
 
         {/* Pinned Header */}
-        <div className="relative shrink-0 flex items-center justify-between gap-3 border-b border-white/[0.07] px-6 py-4 bg-[#090a0e]/90">
+        <div className="relative shrink-0 flex items-center justify-between gap-3 border-b border-[#ece8f8] px-6 py-4 bg-[#f8f7fc]">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-2xl bg-[#1ed760]/12 border border-[#1ed760]/30 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(30,215,96,0.12)]">
-              <ShoppingBag className="w-4 h-4 text-[#1ed760]" />
+            <div className="w-10 h-10 rounded-2xl bg-[#f3efff] border border-[#ddd2fe] flex items-center justify-center shrink-0">
+              <ShoppingBag className="w-4 h-4 text-[#7c3aed]" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-white tracking-tight truncate">
+                <h3 className="text-sm font-bold text-slate-900 tracking-tight truncate">
                   Create PayPal Escrow Order
                 </h3>
-                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-white/[0.05] border border-white/[0.08] text-[10px] font-mono text-zinc-300">
+                <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-white border border-[#ebe6fa] text-[10px] font-mono font-semibold text-[#6d28d9]">
                   v2 Hold
                 </span>
               </div>
-              <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+              <p className="text-[11px] text-slate-500 truncate mt-0.5">
                 Live OpenGuardrails evaluation &rarr; instant escrow reservation
               </p>
             </div>
@@ -339,7 +339,7 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 hover:bg-white/[0.07] rounded-xl text-zinc-400 hover:text-white transition-colors shrink-0"
+            className="p-2 bg-white hover:bg-violet-50 border border-[#ebe6fa] rounded-xl text-slate-500 hover:text-slate-900 transition-colors shrink-0 cursor-pointer"
             aria-label="Close modal"
           >
             <X className="w-4 h-4" />
@@ -349,17 +349,17 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
         {/* Scrollable Form Body */}
         <form id="custom-procure-form" onSubmit={handleSubmit} className="relative flex-1 overflow-y-auto overscroll-contain px-6 py-5 space-y-4 text-xs">
           {/* Limit Strip + One-Click Presets */}
-          <div className="rounded-2xl bg-[#07080b]/90 border border-white/[0.06] p-3.5 space-y-2.5">
+          <div className="rounded-2xl bg-[#f8f7fc] border border-[#ebe6fa] p-3.5 space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-300">
-                <Sparkles className="w-3.5 h-3.5 text-[#1ed760]" />
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-600">
+                <Sparkles className="w-3.5 h-3.5 text-[#7c3aed]" />
                 Quick &amp; Saved Presets
               </span>
               <div className="flex items-center gap-1.5 text-[10px] font-mono">
-                <span className="px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.06] text-zinc-300">
+                <span className="px-2 py-0.5 rounded-md bg-white border border-[#ebe6fa] text-slate-700 font-semibold">
                   Cap {currency === "USD" ? `$${currentCap.toFixed(0)}` : `₹${Math.round(currentCap).toLocaleString("en-IN")}`}
                 </span>
-                <span className="px-2 py-0.5 rounded-md bg-[#1ed760]/10 border border-[#1ed760]/25 text-[#1ed760]">
+                <span className="px-2 py-0.5 rounded-md bg-[#f3efff] border border-[#ddd2fe] text-[#6d28d9] font-semibold">
                   Pool {currency === "USD" ? `$${currentBudget.toFixed(0)}` : `₹${Math.round(currentBudget).toLocaleString("en-IN")}`}
                 </span>
               </div>
@@ -373,14 +373,14 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
                     key={tpl.label}
                     type="button"
                     onClick={() => applyTemplate(tpl)}
-                    className={`px-3 py-1.5 rounded-xl text-[11px] font-medium border transition-all ${
+                    className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold border transition-all cursor-pointer ${
                       tpl.tone === "block"
                         ? isActive
-                          ? "bg-rose-500/20 border-rose-400/60 text-rose-200"
-                          : "bg-rose-950/30 hover:bg-rose-950/60 border-rose-500/25 text-rose-300"
+                          ? "bg-rose-100 border-rose-400 text-rose-800"
+                          : "bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700"
                         : isActive
-                        ? "bg-[#1ed760]/15 border-[#1ed760]/60 text-[#1ed760]"
-                        : "bg-white/[0.04] hover:bg-white/[0.08] border-white/[0.08] text-zinc-200"
+                        ? "bg-[#f3efff] border-[#8b5cf6] text-[#6d28d9]"
+                        : "bg-white hover:bg-violet-50/70 border-[#e5e0f4] text-slate-700"
                     }`}
                   >
                     {tpl.label}
@@ -395,14 +395,14 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
                     key={preset.id}
                     className={`inline-flex items-center rounded-xl border transition-all ${
                       isActive
-                        ? "bg-[#1ed760]/15 border-[#1ed760]/60 text-[#1ed760]"
-                        : "bg-sky-950/30 hover:bg-sky-950/50 border-sky-500/30 text-sky-200"
+                        ? "bg-[#f3efff] border-[#8b5cf6] text-[#6d28d9]"
+                        : "bg-sky-50 hover:bg-sky-100/80 border-sky-200 text-sky-700"
                     }`}
                   >
                     <button
                       type="button"
                       onClick={() => applySavedPreset(preset)}
-                      className="pl-2.5 pr-1.5 py-1.5 text-[11px] font-medium"
+                      className="pl-2.5 pr-1.5 py-1.5 text-[11px] font-semibold cursor-pointer"
                       title={`Load saved preset: ${preset.name}`}
                     >
                       {preset.label}
@@ -410,7 +410,7 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
                     <button
                       type="button"
                       onClick={() => handleDeleteSavedPreset(preset.id)}
-                      className="pr-2 pl-0.5 py-1.5 text-zinc-400 hover:text-rose-300 transition-colors"
+                      className="pr-2 pl-0.5 py-1.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                       title="Remove saved preset"
                       aria-label={`Delete preset ${preset.label}`}
                     >
@@ -424,7 +424,7 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
 
           {/* Item Name */}
           <div>
-            <label className="block text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-400 mb-1.5">
+            <label className="block text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500 mb-1.5">
               Item / Asset Name
             </label>
             <input
@@ -436,7 +436,7 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
                 setActivePresetLabel(null);
                 setName(e.target.value);
               }}
-              className="w-full bg-[#07080b] border border-white/[0.08] hover:border-white/[0.15] focus:border-[#1ed760]/60 focus:ring-2 focus:ring-[#1ed760]/15 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder:text-zinc-600 outline-none transition-all"
+              className="w-full bg-[#faf9ff] border border-[#e3ddf3] hover:border-[#c8bce8] focus:bg-white focus:border-[#7c3aed] focus:ring-2 focus:ring-[#7c3aed]/15 rounded-xl px-3.5 py-2.5 text-slate-900 text-xs placeholder:text-slate-400 outline-none transition-all"
             />
           </div>
 
@@ -444,19 +444,19 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
               <div className="flex items-center justify-between mb-1.5 gap-2">
-                <label className="text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+                <label className="text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
                   Price ({currency})
                 </label>
                 <div className="flex items-center gap-1">
                   {enteredAmount > 0 ? (
-                    <span className="text-[10px] font-mono text-[#1ed760]/90">{convertedSecondary}</span>
+                    <span className="text-[10px] font-mono font-semibold text-[#6d28d9]">{convertedSecondary}</span>
                   ) : (
                     quickAmounts.map((amt) => (
                       <button
                         key={amt}
                         type="button"
                         onClick={() => setAmountInput(amt)}
-                        className="px-1.5 py-0.5 rounded-md bg-white/[0.04] hover:bg-white/[0.1] border border-white/[0.07] text-[10px] font-mono text-zinc-300 transition-colors"
+                        className="px-1.5 py-0.5 rounded-md bg-[#f8f7fc] hover:bg-violet-50 border border-[#ebe6fa] text-[10px] font-mono font-medium text-slate-600 transition-colors cursor-pointer"
                       >
                         {currency === "USD" ? `$${amt}` : `₹${Number(amt).toLocaleString("en-IN")}`}
                       </button>
@@ -464,8 +464,8 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
                   )}
                 </div>
               </div>
-              <div className="flex items-center bg-[#07080b] border border-white/[0.08] hover:border-white/[0.15] focus-within:border-[#1ed760]/60 focus-within:ring-2 focus-within:ring-[#1ed760]/15 rounded-xl px-3.5 py-2.5 transition-all">
-                <span className="text-zinc-400 font-mono font-bold mr-2">
+              <div className="flex items-center bg-[#faf9ff] border border-[#e3ddf3] hover:border-[#c8bce8] focus-within:bg-white focus-within:border-[#7c3aed] focus-within:ring-2 focus-within:ring-[#7c3aed]/15 rounded-xl px-3.5 py-2.5 transition-all">
+                <span className="text-slate-500 font-mono font-bold mr-2">
                   {currency === "USD" ? "$" : "₹"}
                 </span>
                 <input
@@ -479,13 +479,13 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
                     setActivePresetLabel(null);
                     setAmountInput(e.target.value);
                   }}
-                  className="bg-transparent w-full text-white font-mono font-semibold placeholder:text-zinc-600 outline-none"
+                  className="bg-transparent w-full text-slate-900 font-mono font-semibold placeholder:text-slate-400 outline-none"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-400 mb-1.5">
+              <label className="block text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500 mb-1.5">
                 Merchant Category
               </label>
               <select
@@ -494,13 +494,13 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
                   setActivePresetLabel(null);
                   setCategory(e.target.value);
                 }}
-                className="w-full bg-[#07080b] border border-white/[0.08] hover:border-white/[0.15] focus:border-[#1ed760]/60 focus:ring-2 focus:ring-[#1ed760]/15 rounded-xl px-3.5 py-2.5 text-white text-xs outline-none transition-all"
+                className="w-full bg-[#faf9ff] border border-[#e3ddf3] hover:border-[#c8bce8] focus:bg-white focus:border-[#7c3aed] focus:ring-2 focus:ring-[#7c3aed]/15 rounded-xl px-3.5 py-2.5 text-slate-900 text-xs font-medium outline-none transition-all"
               >
-                <option value="electronics">Electronics (Permitted)</option>
-                <option value="hardware">Hardware (Permitted)</option>
-                <option value="cloud">Cloud Compute (Permitted)</option>
-                <option value="office">Office Supplies (Permitted)</option>
-                <option value="luxury">Luxury Assets (Blocked by Policy)</option>
+                <option value="electronics" className="bg-white text-slate-900">Electronics (Permitted)</option>
+                <option value="hardware" className="bg-white text-slate-900">Hardware (Permitted)</option>
+                <option value="cloud" className="bg-white text-slate-900">Cloud Compute (Permitted)</option>
+                <option value="office" className="bg-white text-slate-900">Office Supplies (Permitted)</option>
+                <option value="luxury" className="bg-white text-slate-900">Luxury Assets (Blocked by Policy)</option>
               </select>
             </div>
           </div>
@@ -508,7 +508,7 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
           {/* Merchant & Business Justification Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-400 mb-1.5">
+              <label className="block text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500 mb-1.5">
                 Supplier / Merchant
               </label>
               <input
@@ -516,11 +516,11 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
                 placeholder="e.g. Apple Inc, AWS India"
                 value={merchant}
                 onChange={(e) => setMerchant(e.target.value)}
-                className="w-full bg-[#07080b] border border-white/[0.08] hover:border-white/[0.15] focus:border-[#1ed760]/60 focus:ring-2 focus:ring-[#1ed760]/15 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder:text-zinc-600 outline-none transition-all"
+                className="w-full bg-[#faf9ff] border border-[#e3ddf3] hover:border-[#c8bce8] focus:bg-white focus:border-[#7c3aed] focus:ring-2 focus:ring-[#7c3aed]/15 rounded-xl px-3.5 py-2.5 text-slate-900 text-xs placeholder:text-slate-400 outline-none transition-all"
               />
             </div>
             <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-400 mb-1.5">
+              <label className="block text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500 mb-1.5">
                 Purpose / Justification
               </label>
               <input
@@ -528,7 +528,7 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
                 placeholder="e.g. Dev workstation setup"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full bg-[#07080b] border border-white/[0.08] hover:border-white/[0.15] focus:border-[#1ed760]/60 focus:ring-2 focus:ring-[#1ed760]/15 rounded-xl px-3.5 py-2.5 text-white text-xs placeholder:text-zinc-600 outline-none transition-all"
+                className="w-full bg-[#faf9ff] border border-[#e3ddf3] hover:border-[#c8bce8] focus:bg-white focus:border-[#7c3aed] focus:ring-2 focus:ring-[#7c3aed]/15 rounded-xl px-3.5 py-2.5 text-slate-900 text-xs placeholder:text-slate-400 outline-none transition-all"
               />
             </div>
           </div>
@@ -537,33 +537,33 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
           <div
             className={`rounded-2xl border border-l-[3px] p-3.5 flex items-start gap-3 transition-colors ${
               !guardrailPreview.willPass
-                ? "bg-rose-950/25 border-rose-500/35 border-l-rose-400 text-rose-200"
+                ? "bg-rose-50 border-rose-200 border-l-rose-500 text-rose-800"
                 : guardrailPreview.pendingInput
-                ? "bg-[#07080b] border-white/[0.07] border-l-zinc-600 text-zinc-300"
-                : "bg-[#1ed760]/[0.07] border-[#1ed760]/30 border-l-[#1ed760] text-emerald-100"
+                ? "bg-[#f8f7fc] border-[#ebe6fa] border-l-slate-400 text-slate-700"
+                : "bg-emerald-50 border-emerald-200 border-l-emerald-500 text-emerald-900"
             }`}
           >
             {!guardrailPreview.willPass ? (
-              <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
             ) : guardrailPreview.pendingInput ? (
-              <ShieldCheck className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
+              <ShieldCheck className="w-4 h-4 text-[#7c3aed] shrink-0 mt-0.5" />
             ) : (
-              <CheckCircle2 className="w-4 h-4 text-[#1ed760] shrink-0 mt-0.5" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             )}
             <div className="space-y-0.5 min-w-0">
-              <p className="font-semibold text-xs">{guardrailPreview.title}</p>
-              <p className="text-[11px] opacity-80 leading-relaxed">{guardrailPreview.detail}</p>
+              <p className="font-bold text-xs">{guardrailPreview.title}</p>
+              <p className="text-[11px] opacity-85 leading-relaxed">{guardrailPreview.detail}</p>
             </div>
           </div>
         </form>
 
         {/* Pinned Footer — One-Click Save Preset + Save & Lock Escrow */}
-        <div className="relative shrink-0 border-t border-white/[0.07] px-6 py-4 bg-[#090a0e]/95 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5">
+        <div className="relative shrink-0 border-t border-[#ece8f8] px-6 py-4 bg-[#f8f7fc] flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.09] border border-white/[0.08] text-xs font-medium text-zinc-300 hover:text-white transition-colors"
+              className="btn-secondary px-4 py-2.5 rounded-xl text-xs font-semibold cursor-pointer"
             >
               Cancel
             </button>
@@ -573,10 +573,10 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
               onClick={handleOneClickSavePreset}
               disabled={!name.trim() && !amountInput.trim()}
               title="One-click save this order configuration as a reusable preset"
-              className={`px-3.5 py-2.5 rounded-xl border text-xs font-semibold inline-flex items-center gap-1.5 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+              className={`px-3.5 py-2.5 rounded-xl border text-xs font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                 justSavedPreset
-                  ? "bg-[#1ed760]/15 border-[#1ed760]/50 text-[#1ed760]"
-                  : "bg-white/[0.04] hover:bg-white/[0.09] border-white/[0.09] text-zinc-200"
+                  ? "bg-emerald-50 border-emerald-300 text-emerald-700"
+                  : "bg-white hover:bg-violet-50 border-[#e3ddf3] text-slate-700"
               }`}
             >
               {justSavedPreset ? (
@@ -586,7 +586,7 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
                 </>
               ) : (
                 <>
-                  <BookmarkPlus className="w-3.5 h-3.5" />
+                  <BookmarkPlus className="w-3.5 h-3.5 text-[#7c3aed]" />
                   <span>Save Preset</span>
                 </>
               )}
@@ -597,10 +597,10 @@ export const CustomProcureModal: React.FC<CustomProcureModalProps> = ({
             type="submit"
             form="custom-procure-form"
             disabled={loading}
-            className={`flex-1 sm:flex-initial sm:min-w-[205px] px-5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all disabled:opacity-60 ${
+            className={`flex-1 sm:flex-initial sm:min-w-[205px] px-5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-60 ${
               guardrailPreview.willPass
-                ? "bg-[#1ed760] hover:bg-[#2be46e] text-black shadow-[0_0_24px_rgba(30,215,96,0.28)]"
-                : "bg-rose-500 hover:bg-rose-400 text-white shadow-[0_0_20px_rgba(244,63,94,0.25)]"
+                ? "btn-violet"
+                : "bg-rose-600 hover:bg-rose-500 text-white shadow-sm"
             }`}
           >
             {loading ? (

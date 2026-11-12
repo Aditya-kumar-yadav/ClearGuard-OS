@@ -63,26 +63,26 @@ export const VisionLensLogo: React.FC<LogoProps> = ({ className = "w-5 h-5" }) =
   );
 };
 
-/** ClearGuard / AuroraPay metallic shield prism emblem. */
+/** ClearGuard / AuroraPay violet shield emblem matching the light SaaS chrome. */
 export const AuroraShieldLogo: React.FC<LogoProps> = ({ className = "w-5 h-5" }) => {
   const gradId = useId();
   return (
     <svg viewBox="0 0 32 32" fill="none" className={className} aria-hidden="true">
       <defs>
         <linearGradient id={gradId} x1="6" y1="4" x2="26" y2="28" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#1ED760" />
-          <stop offset="100%" stopColor="#0EA5E9" />
+          <stop offset="0%" stopColor="#7C3AED" />
+          <stop offset="100%" stopColor="#6366F1" />
         </linearGradient>
       </defs>
       <path
-        d="M16 3L27 7.4V15.5C27 22.1 22.3 27.6 16 29.4C9.7 27.6 5 22.1 5 15.5V7.4L16 3Z"
-        fill="#090D12"
+        d="M16 3.5L26.5 7.7V15.4C26.5 21.8 22 27.1 16 28.9C10 27.1 5.5 21.8 5.5 15.4V7.7L16 3.5Z"
+        fill="#F5F3FF"
         stroke={`url(#${gradId})`}
-        strokeWidth="2"
+        strokeWidth="2.1"
       />
       <path
-        d="M11.8 16.3L14.7 19.2L20.6 12.8"
-        stroke="#1ED760"
+        d="M11.8 16.2L14.7 19.1L20.5 13"
+        stroke="#7C3AED"
         strokeWidth="2.4"
         strokeLinecap="round"
         strokeLinejoin="round"

@@ -1,167 +1,175 @@
-# ClearGuard-OS 🛡️
-### Autonomous AI Escrow & Hostage Money Protocol for Enterprise Procurement
+# AuroraPay — ClearGuard OS 🛡️
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](https://opensource.org/licenses/MIT)
-[![FastAPI](https://img.shields.io/badge/Backend-FastAPI_0.110+-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
-[![Next.js](https://img.shields.io/badge/Frontend-Next.js_15-black.svg?logo=next.js)](https://nextjs.org)
-[![Python](https://img.shields.io/badge/Python-3.11+-3776AB.svg?logo=python)](https://python.org)
-[![OpenGuardrails](https://img.shields.io/badge/Guardrails-OpenGuardrails-blue.svg)](https://github.com/openguardrails)
-[![APIMatic](https://img.shields.io/badge/APIMatic-Zero--Hallucination-purple.svg)](https://www.apimatic.io/)
+### Autonomous AI Escrow, Pre-Purchase Guardrails & Cryptographic Settlement Protocol
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-7c3aed.svg)](https://opensource.org/licenses/MIT)
 [![PayPal](https://img.shields.io/badge/Payments-PayPal_Orders_v2-003087.svg?logo=paypal)](https://developer.paypal.com)
+[![Next.js](https://img.shields.io/badge/Frontend-Next.js_16_%2B_React_19-111827.svg?logo=next.js)](https://nextjs.org)
+[![AG Grid](https://img.shields.io/badge/Data_Grid-AG_Grid_React_36.3-7c3aed.svg)](https://www.ag-grid.com/react-data-grid/)
+[![FastAPI](https://img.shields.io/badge/Backend-FastAPI_%2B_Python_3.11-059669.svg?logo=fastapi)](https://fastapi.tiangolo.com)
+[![OpenGuardrails](https://img.shields.io/badge/Guardrails-4--Tier_OpenGuardrails-6366f1.svg)](https://github.com/openguardrails)
+[![APIMatic](https://img.shields.io/badge/Schema-APIMatic_Zero--Hallucination-7c3aed.svg)](https://www.apimatic.io/)
+[![Tests](https://img.shields.io/badge/Backend_Suite-153_Pytest_Passing-10b981.svg)](#automated-verification-suite)
 
 ---
 
-## 📌 Executive Overview
+## Overview — The Hostage Money Protocol
 
-**ClearGuard-OS** is an autonomous AI financial security protocol and governance operating system. When autonomous AI agents (powered by Google Gemini) are delegated corporate purchasing authority, traditional card payments present catastrophic risks: **rogue spend overruns, prompt-injection hijacked purchases, supplier shipment scams, and floating-point math rounding drift.**
+Giving autonomous AI agents corporate spending power introduces four fatal failure modes: **prompt-injection hijacks, runaway spending loops, floating-point ledger drift, and paying upfront before physical goods arrive intact.**
 
-ClearGuard-OS solves this through the **Hostage Money Protocol**:
-Funds are **never paid upfront**. Instead, funds are frozen in smart **PayPal Orders v2 Escrow (AUTHORIZE)** and only released upon cryptographic physical verification or reclaimed autonomously upon transit damage.
+**AuroraPay (ClearGuard OS)** solves all four through the **Hostage Money Protocol**:
+
+1. **Zero Upfront Payouts:** AI procurement orders are evaluated before dispatch and frozen in **PayPal Orders v2 Escrow (`intent: AUTHORIZE`)** rather than captured immediately.
+2. **Pre-Checkout Blocking:** Out-of-policy categories, injection payloads, SSRF probes, and over-cap spends are intercepted with **HTTP 403** *before* any PayPal order or cart checkout happens (`$0` escrowed).
+3. **Physical Proof-of-Delivery Gate:** Gemini Vision analyzes courier drop-off photos against the expected SKU, tamper tape seal, and deformation thresholds before PayPal authorization can settle (`CAPTURE`) or be voided/disputed (`VOID` / PayPal Disputes v1).
+4. **Tamper-Evident Auditability:** Every order transition is linked into an immutable **SHA-256 Hash Chain**, signed by an air-gapped Maker-Checker auditor (`HMAC-SHA256`), and surfaced live in an interactive **AG Grid React** enterprise ledger.
 
 ---
 
-## 🏛️ Core Architectural Pillars
+## Quick Judge Walkthrough (60 Seconds on Localhost)
+
+| Step | Tab / Surface | What to Trigger | Verified Proof |
+| :--- | :--- | :--- | :--- |
+| **1. Policy Interception** | **Overview & Catalog** or **+ New Custom Order** | Attempt **Rolex Submariner** (`luxury`) or a spend above `Per-Order Cap` | **HTTP 403 Forbidden** logged as `BLOCKED`; `0` PayPal orders created & `$0` deducted |
+| **2. AI Auto-Buy Escrow** | **AI Auto-Buy** banner or right-edge dock (`AI Auto`) | Enter natural-language instruction (e.g. *"Buy 1 Logitech MX Master 3S..."*) | Parsed via Gemini -> checked by OpenGuardrails -> real **PayPal Sandbox `AUTHORIZE` hold** |
+| **3. Dynamic AG Grid Audit** | **Escrow Orders → Audit Grid** | Search with Quick Filter, sort amounts/scores, click `Hash` / `POD` / `PayPal` cells, or **Export CSV** | Live **AG Grid React (`v36.3`)** table with custom `themeQuartz` light theme & inline `Auth`/`Capture`/`Void` controls |
+| **4. Multimodal Vision POD** | **Vision Dashboard** | Bind a target `TX` order ID & upload a parcel photo | Runs `SHA-256` photo hashing + Gemini Vision POD check -> updates integrity score & settles/holds PayPal escrow |
+| **5. Tamper & Recovery** | Click any transaction's **Hash / Audit** button | Click **Simulate Database Tamper** then **Repair & Re-Anchor Chain** | Status flips cleanly `VERIFIED -> CORRUPTED -> VERIFIED` |
+| **6. Dual-Agent Signing** | **Mandate & Safeguards** | Click **Verify Dual-Agent Maker-Checker Signature** | Independent Agent 1 (Maker) / Agent 2 (Checker) verification with `HMAC-SHA256` proof |
+
+---
+
+## System Architecture
 
 ```
-                     ┌────────────────────────────────────────┐
-                     │          Autonomous AI Agent           │
-                     │       (Gemini 2.0 Flash Watchdog)      │
-                     └───────────────────┬────────────────────┘
-                                         │
-                   APIMatic OpenAPI      │ Zero-Hallucination
-                   Pre-Flight Schema     ▼ Schema Interception
-                     ┌────────────────────────────────────────┐
-                     │         ClearGuard-OS Gateway          │
-                     │   Slowapi Rate Limiter (5 req/min)     │
-                     └───────────────────┬────────────────────┘
-                                         │
-                                         ▼
-                     ┌────────────────────────────────────────┐
-                     │      4-Tier OpenGuardrails Gate        │
-                     │  1. Injection / SSRF / Secret Regex    │
-                     │  2. Commercial Category Whitelist      │
-                     │  3. Strict Decimal Cap (ROUND_HALF_UP) │
-                     │  4. Pre-Flight Ledger Pool Invariant   │
-                     └───────────────────┬────────────────────┘
-                                         │
-                         ┌───────────────┴───────────────┐
-                         ▼                               ▼
-                 [ 403 Forbidden ]               [ 200 Approved ]
-                 Blocked in Ledger              PayPal Escrow AUTHORIZE
-                 Zero Money Moved               Deterministic UUIDv4
-                         │                               │
-                         └───────────────┬───────────────┘
-                                         ▼
-                     ┌────────────────────────────────────────┐
-                     │   SHA-256 Immutable Ledger Chain       │
-                     │   Hash(n) = SHA256(Prev + Ts + Amt + St)│
-                     └───────────────────┬────────────────────┘
-                                         │
-                         ┌───────────────┴───────────────┐
-                         ▼                               ▼
-               Physical Courier Delivery         Carrier Damage / Loss
-               Gemini Vision: 99% Pristine       Gemini Vision: Deformed
-                         │                               │
-                         ▼                               ▼
-               Capture Authorization             Auto-Dispute Claim Filed
-               (Merchant Paid)                   (Buyer Escrow Reclaimed)
+            ┌─────────────────────────────────────────────┐
+            │   AuroraPay Next.js 16 Dashboard + AI Auto  │
+            │  (Overview • Cards/AG Grid • Vision POD)    │
+            └──────────────────────┬──────────────────────┘
+                                   │
+             APIMatic OpenAPI      │ Zero-Hallucination
+             Strict Type Gate      ▼ Schema Interception
+            ┌─────────────────────────────────────────────┐
+            │        ClearGuard FastAPI Control Plane     │
+            │  • Slowapi Rate Limiter (5 req/min)         │
+            │  • Autonomous Kill Switch Circuit Breaker   │
+            └──────────────────────┬──────────────────────┘
+                                   │
+                                   ▼
+            ┌─────────────────────────────────────────────┐
+            │       4-Tier OpenGuardrails Policy Engine   │
+            │  1. Injection / SSRF / Secret Leakage Regex │
+            │  2. Commercial Category Allowlist Check     │
+            │  3. Strict Decimal Cap (ROUND_HALF_UP)      │
+            │  4. Pre-Flight Remaining Pool Invariant     │
+            └──────────────────────┬──────────────────────┘
+                                   │
+                  ┌────────────────┴────────────────┐
+                  ▼                                 ▼
+        [ 403 BLOCKED Pre-Cart ]          [ 200 APPROVED + HMAC ]
+        Zero PayPal Order Created         PayPal Orders v2 AUTHORIZE
+                  │                                 │
+                  └────────────────┬────────────────┘
+                                   ▼
+            ┌─────────────────────────────────────────────┐
+            │     SHA-256 Immutable Hash-Chain Ledger     │
+            │  Hash(n) = SHA256(Prev + Ts + Amt + St)     │
+            │  Exposed in AG Grid Audit + Inspector Modal │
+            └──────────────────────┬──────────────────────┘
+                                   │
+                  ┌────────────────┴────────────────┐
+                  ▼                                 ▼
+      Intact Delivery Photo Verified       Damage / Mismatch Flagged
+      Capture Authorization (Paid)         Void Hold / Dispute Filed
 ```
 
 ---
 
-## 🔐 Key Innovations & Engineered Deliverables
+## Highlight: Dynamic AG Grid React Audit Ledger
 
-### 1. Precision Financial Math (Phase 1)
-- **Eradication of IEEE-754 Floats**: All schemas, routes, and database models use Python's `decimal.Decimal` quantized strictly to two decimal places with `ROUND_HALF_UP`.
-- **Pre-Flight Invariant Validation**: Before money is committed, the engine calculates:
-  $$\text{Spent\_So\_Far} + \text{Current\_Transaction\_Amount} \le \text{Total\_Mandate\_Limit}$$
-- **PostgreSQL Async Pooling**: Non-blocking `asyncpg` and SQLAlchemy async sessions (`pool_size=10, max_overflow=20`) handling high-concurrency multi-agent calls.
+Built with **`ag-grid-react` & `ag-grid-community` (`36.3.0`)** in [TransactionsAgGrid.tsx](frontend/src/components/TransactionsAgGrid.tsx):
 
-### 2. SHA-256 Cryptographic Immutable Ledger
-- Every state transition ($\text{PENDING} \rightarrow \text{AUTHORIZED} \rightarrow \text{CAPTURED} \rightarrow \text{DISPUTED}$) appends to an immutable cryptographic block hash:
-  $$\text{Hash}_n = \text{SHA256}(\text{Prev\_Hash}_{n-1} + \text{Timestamp} + \text{Amount} + \text{Status})$$
-- `/api/audit/{transaction_id}` Endpoint: Dynamically recalculates the complete cryptographic chain. If any database cell was manually altered, it flags the row as `CORRUPTED`.
-
-### 3. Strict Webhook Signature Verification (Phase 2)
-- Rejects unverified raw POST requests with **HTTP 401 Unauthorized**.
-- Inspects PayPal transmission headers:
-  - `PAYPAL-AUTH-ALGO` (e.g. `SHA256withRSA`)
-  - `PAYPAL-CERT-URL` (whitelisted to sanctioned PayPal HTTPS domains)
-  - `PAYPAL-TRANSMISSION-ID`
-  - `PAYPAL-TRANSMISSION-SIG`
-  - `PAYPAL-TRANSMISSION-TIME`
-
-### 4. APIMatic Zero-Hallucination Tooling (Phase 3)
-- Replaces loose, informal JSON tool schemas with formal **OpenAPI 3.0 APIMatic Context Plugins**.
-- Pre-flight schema validation checks arguments against exact enum types, property constraints, and required fields before sending to the LLM or network, eliminating argument hallucination.
-
-### 5. Blast Radius Rate Limiting (Phase 4)
-- **Slowapi** sliding-window token bucket on `/api/validate_transaction`.
-- Caps AI spending attempts to a maximum of **5 validations per minute**.
-- Tripping the cap immediately returns **HTTP 429 Too Many Requests**, containing runaway autonomous AI loops.
-
-### 6. Multi-Agent 2-Step AI Dual Control
-- **Step 1 (Maker-Checker Banking Protocol)**: Agent 1 (Procurement Buyer) crafts proposals; Agent 2 (Air-Gapped Auditor) verifies without network access and signs via `HMAC-SHA256`.
-- **Step 2 (Multi-Modal Vision POD Arbiter)**: Analyzes physical parcel delivery photographs. Pristine condition ($\ge 95\%$) releases escrow; structural deformation ($\ge 80\%$) halts capture and triggers PayPal Disputes v1.
+- **Custom Quartz Light Theme:** Uses `themeQuartz.withPart(colorSchemeLight)` tuned to AuroraPay's `#ffffff` / `#f7f5fe` / `#7c3aed` lilac-white-violet palette (with `ModuleRegistry.registerModules([AllCommunityModule])`).
+- **Real-Time KPI Strip Inside the Grid Header:** Computes live **Rows**, **Authorized Locked**, **Settled**, and **Policy Blocked** totals directly from filtered ledger rows with normalized `USD` / `INR` sorting.
+- **8 Purpose-Built Financial Columns:**
+  1. `Order TX` (TX ID + timestamp filter & sort)
+  2. `Item & Merchant` (category pill, SKU title, supplier)
+  3. `Escrow Amount` (right-aligned tabular currency normalized across `USD` / `INR`)
+  4. `Escrow Status` (pill badges for `AUTHORIZED`, `CAPTURED`, `DISPUTED`, `BLOCKED`, `ORDER_CREATED`)
+  5. `PayPal Escrow IDs` (one-click `CAP` / `AUTH` / `ORD` / `GATE` payload inspector + direct Sandbox checkout approval link)
+  6. `Vision POD` (real-time integrity score bar, retry counter `vision_mismatch_attempts`, and direct modal jump)
+  7. `SHA-256 Chain` (`0x...` block hash prefix pill opening cryptographic tamper/repair verification)
+  8. `Escrow Actions` (inline **Auth**, **Capture**, **Void**, **Proof**, and **Delete** controls)
+- **Quick Filter & One-Click Compliance Export:** Instant client-side search across TX IDs, merchants, statuses, and hashes plus formatted CSV export (`clearguard-escrow-audit-YYYY-MM-DD.csv`).
 
 ---
 
-## 🚀 Quickstart Guide
+## Core Security & Financial Guarantees
+
+- **Strict `Decimal` Accounting (No IEEE-754 Floats):** Financial schemas, mandate updates, and pool deductions use Python `decimal.Decimal` quantized with `ROUND_HALF_UP`.
+- **SHA-256 Immutable Ledger Chain:** Every state transition appends a chained hash verified dynamically by `/api/audit/{transaction_id}`, with judge tamper simulation (`/api/audit/simulate-tamper/{id}`) and repair (`/api/audit/repair/{id}`).
+- **Strict PayPal Webhook Signature Verification:** Rejects unsigned or non-whitelisted webhook calls with **HTTP 401**, validating `PAYPAL-AUTH-ALGO`, `PAYPAL-CERT-URL`, `PAYPAL-TRANSMISSION-ID`, `PAYPAL-TRANSMISSION-SIG`, and `PAYPAL-TRANSMISSION-TIME`.
+- **APIMatic Zero-Hallucination Schema Gate:** Validates agent tool parameters against strict OpenAPI constraints prior to execution (`agents/tools/apimatic_plugin.py`).
+- **Blast Radius & Kill-Switch Controls:** Slowapi token-bucket throttling on validation routes plus an autonomous circuit breaker (`/api/kill-switch/*`) triggered on policy anomalies or dispute thresholds.
+- **Maker-Checker Dual Control:** Independent Maker/Checker agents sign approved procurement proposals via `HMAC-SHA256` before PayPal order dispatch (`/api/maker-checker/propose-and-audit`).
+
+---
+
+## Quickstart Guide
 
 ### Prerequisites
 - Python 3.11+
 - Node.js 18+ (Node 20+ recommended)
-- PayPal Developer Sandbox Account
-- Google Gemini API Key
+- PayPal Developer Sandbox credentials (`PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`)
+- Google Gemini API key (`GEMINI_API_KEY`)
 
-### 1. Repository & Environment Setup
+### 1. Clone & Configure Environment
 ```bash
 git clone https://github.com/Aditya-kumar-yadav/ClearGuard-OS.git
 cd ClearGuard-OS
 
-# Place the shared team `.env` at the repository root, OR create one from `.env.example`:
 cp .env.example .env
 ```
-> **Note for Collaborators:**
-> - Place `.env` in the **repository root** (`ClearGuard-OS/.env`) with valid PayPal Sandbox (`PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`) and `GEMINI_API_KEY` values. Do **not** commit `.env`.
-> - For live PayPal Sandbox checkout approval, log into [sandbox.paypal.com](https://sandbox.paypal.com) using a **Sandbox Personal Buyer account** in the same supported currency (default **USD**).
+> Fill `.env` at the repository root with your PayPal Sandbox and Gemini API credentials. `.env` and runtime evidence files under `backend/vision_evidence/` are gitignored and never committed.
 
-### 2. Backend Setup
+### 2. Start the FastAPI Backend (`:8000`)
 ```bash
 cd backend
 python -m venv venv
-# On Windows:
+# Windows PowerShell:
 .\venv\Scripts\activate
-# On Linux/macOS:
-source venv/bin/activate
+# Linux/macOS:
+# source venv/bin/activate
 
 pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8000 --no-server-header
 ```
+Swagger docs are available at [http://localhost:8000/docs](http://localhost:8000/docs).
 
-### 3. Frontend Setup
+### 3. Start the Next.js Frontend (`:3000`)
 ```bash
 cd ../frontend
 npm install
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000).
 
-### 4. Optional: Docker Compose Setup
+### 4. Optional: Docker Compose
 ```bash
 docker compose up --build
 ```
 
 ---
 
-## 🧪 Automated Verification Suite
+## Automated Verification Suite
 
-Run the backend integration & security suite (with venv activated from repository root):
+Run the full backend test suite from the repository root:
 ```bash
-pytest -v
+python -m pytest -q
 ```
+Current suite coverage verifies **153 tests** across decimal mandates, OpenGuardrails policy blocking, webhook signature enforcement, SHA-256 ledger tamper detection/repair, maker-checker HMAC signing, and PayPal escrow transitions.
 
-Legacy verification scripts are organized under `scripts/`:
+Additional verification scripts:
 ```bash
 python scripts/test_verification.py
 python scripts/test_apimatic.py
@@ -169,56 +177,66 @@ python scripts/test_apimatic.py
 
 ---
 
-## 📂 Project Monorepo Structure
+## Project Structure
 
-```
+```text
 ClearGuard-OS/
 ├── backend/
 │   ├── api/
-│   │   ├── api.py               # Core validation & procurement routes
-│   │   ├── webhooks.py          # Strict PayPal signature verification
-│   │   └── validate.py          # Strict interceptor middleware
+│   │   ├── api.py                   # Core validation & procurement routes
+│   │   ├── webhooks.py              # Strict PayPal webhook signature verification
+│   │   └── validate.py              # Request interceptor middleware
 │   ├── core/
-│   │   ├── crypto_ledger.py     # SHA-256 state chain & audit recalculator
-│   │   ├── database.py          # Numeric(18,2) async connection pool
-│   │   ├── guardrail.py         # OpenGuardrails deterministic engine
-│   │   ├── kill_switch.py       # Autonomous circuit breaker & velocity monitor
-│   │   ├── maker_checker.py     # Dual-control HMAC protocol
-│   │   ├── paypal_client.py     # PayPal Orders v2 & Disputes client
-│   │   └── vision_arbiter.py    # Multi-modal Gemini parcel inspection
+│   │   ├── crypto_ledger.py         # SHA-256 state chain & tamper detection
+│   │   ├── database.py              # Numeric(18,2) async SQLAlchemy / SQLite/PG pool
+│   │   ├── guardrail.py             # 4-tier OpenGuardrails policy engine
+│   │   ├── kill_switch.py           # Autonomous circuit breaker
+│   │   ├── maker_checker.py         # Dual-agent HMAC-SHA256 protocol
+│   │   ├── paypal_client.py         # PayPal Orders v2 & Disputes v1 client
+│   │   └── vision_arbiter.py        # Multimodal Vision proof-of-delivery arbiter
 │   ├── schemas/
-│   │   └── schemas.py           # Strict Decimal Pydantic models
-│   ├── main.py                  # FastAPI application entry point
+│   │   └── schemas.py               # Decimal-enforced Pydantic models
+│   ├── tests/                       # Pytest security, guardrail & ledger suite
+│   ├── main.py                      # FastAPI application entrypoint
 │   └── requirements.txt
 ├── frontend/
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── globals.css      # Brutalist dark-mode theme
-│   │   │   └── page.tsx         # Real-time reactive telemetry dashboard
-│   │   ├── components/
-│   │   │   ├── AuditModal.tsx   # Interactive SHA-256 ledger inspector
-│   │   │   ├── EdgeDockRail.tsx # Organic curved smartphone aesthetic dock
-│   │   │   ├── SettlementFlowModal.tsx # Live PayPal capture/void step trace
-│   │   │   └── ProductCatalog.tsx
-│   │   └── lib/
-│   │       └── fetcher.ts       # Resilient API fetcher with brutalist toasts
-│   └── package.json
+│   ├── next.config.ts               # Next.js configuration
+│   ├── package.json
+│   └── src/
+│       ├── app/
+│       │   ├── globals.css          # Light Lilac-White-Violet SaaS design system
+│       │   ├── layout.tsx           # Root App Router layout
+│       │   ├── page.tsx             # Main dashboard, Catalog, Escrow, Vision & Safeguards
+│       │   └── escrow/
+│       │       ├── return/page.tsx  # PayPal Sandbox authorization callback handler
+│       │       └── cancel/page.tsx  # PayPal Sandbox checkout cancellation handler
+│       └── components/
+│           ├── TransactionsAgGrid.tsx  # Dynamic AG Grid React v36.3 Enterprise Audit Table
+│           ├── AuditModal.tsx          # 4-tab SHA-256, Maker-Checker, Vision & PayPal Inspector
+│           ├── CustomProcureModal.tsx  # Structured order form + live guardrail preview
+│           ├── SettlementFlowModal.tsx # Step-by-step live PayPal Capture / Void trace modal
+│           ├── EdgeDockRail.tsx        # Floating right-edge dock & AI Auto-Buy quick drawer
+│           ├── PayPalAuthModal.tsx     # Connected buyer profile & sandbox key configurator
+│           ├── SetAmountModal.tsx      # Dual-currency pool balance & per-order cap editor
+│           └── BrandLogos.tsx          # AuroraPay & PayPal SVG brand emblems
 ├── agents/
 │   ├── tools/
-│   │   ├── apimatic_plugin.py   # APIMatic OpenAPI schema declarations
-│   │   ├── secure_order.py      # Circuit breaker & 5s timeout fallback
-│   │   ├── auto_dispute.py      # Automated dispute filing tool
-│   │   └── status_checker.py    # Carrier telematics simulator
-│   └── main_agent.py            # Gemini Watchdog autonomous agent
+│   │   ├── apimatic_plugin.py       # APIMatic OpenAPI schema validators
+│   │   ├── secure_order.py          # Resilient order dispatcher
+│   │   ├── auto_dispute.py          # Automated PayPal dispute tool
+│   │   └── status_checker.py        # Carrier tracking & delivery tool
+│   └── main_agent.py                # Autonomous AI procurement agent
 ├── scripts/
-│   ├── test_verification.py     # Manual live-server verification script
-│   └── test_apimatic.py         # APIMatic zero-hallucination verification
+│   ├── test_verification.py         # Live server verification script
+│   └── test_apimatic.py             # APIMatic schema verification
+├── .env.example
 ├── docker-compose.yml
+├── LICENSE                          # MIT License
 └── README.md
 ```
 
 ---
 
-## 🛡️ License
+## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the **MIT License** — see [LICENSE](LICENSE) for full terms.

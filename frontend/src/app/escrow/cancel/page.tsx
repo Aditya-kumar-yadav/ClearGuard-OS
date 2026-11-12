@@ -31,27 +31,27 @@ function EscrowCancelContent() {
   }, [token]);
 
   return (
-    <div className="min-h-screen bg-[#0a0f1c] text-slate-100 flex items-center justify-center p-6">
-      <div className="max-w-lg w-full bg-[#111827] border border-slate-800 rounded-2xl p-8 shadow-2xl space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-[#f6f4fe] via-[#faf9ff] to-[#f1edfc] text-slate-900 flex items-center justify-center p-6">
+      <div className="max-w-lg w-full surface-card p-8 space-y-6">
         <div className="flex items-center gap-3">
-          {loading ? <Loader2 className="w-8 h-8 text-amber-400 animate-spin" /> : <XCircle className="w-8 h-8 text-amber-400" />}
+          {loading ? <Loader2 className="w-8 h-8 text-amber-500 animate-spin" /> : <XCircle className="w-8 h-8 text-amber-500" />}
           <div>
-            <p className="text-xs font-mono uppercase tracking-wider text-slate-400">ClearGuard OS • PayPal Escrow Cancel</p>
-            <h1 className="text-xl font-bold text-white">Checkout Cancelled</h1>
+            <p className="text-xs font-mono uppercase tracking-wider text-slate-500">ClearGuard OS • PayPal Escrow Cancel</p>
+            <h1 className="text-xl font-bold text-slate-900">Checkout Cancelled</h1>
           </div>
         </div>
 
-        <p className="text-sm text-slate-300 leading-relaxed">{statusMsg}</p>
+        <p className="text-sm text-slate-600 leading-relaxed">{statusMsg}</p>
 
         {token && (
-          <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-300">
-            Cancelled PayPal Order ID: <span className="text-white">{token}</span>
+          <div className="surface-card-subtle p-4 font-mono text-xs text-slate-600">
+            Cancelled PayPal Order ID: <span className="text-slate-900 font-semibold">{token}</span>
           </div>
         )}
 
         <Link
           href="/"
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2.5 btn-violet text-sm font-semibold"
         >
           <ArrowLeft className="w-4 h-4" /> Return to Dashboard
         </Link>
@@ -62,7 +62,7 @@ function EscrowCancelContent() {
 
 export default function EscrowCancelPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#0a0f1c] text-slate-300 flex items-center justify-center">Processing cancellation...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-[#f6f4fe] text-slate-600 flex items-center justify-center">Processing cancellation...</div>}>
       <EscrowCancelContent />
     </Suspense>
   );

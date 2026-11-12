@@ -312,6 +312,14 @@ ACTIVE_MANDATE = {
     "allowed_categories": "electronics,hardware,cloud,office"
 }
 
+
+def _deduct_remaining_pool(amount: Any) -> None:
+    """Safely deduct a float or Decimal amount from ACTIVE_MANDATE['remaining_pool']."""
+    dec_pool = Decimal(str(ACTIVE_MANDATE.get("remaining_pool", "150000.00"))).quantize(Decimal("0.01"))
+    dec_spend = Decimal(str(amount)).quantize(Decimal("0.01"))
+    if dec_pool >= dec_spend:
+        ACTIVE_MANDATE["remaining_pool"] = (dec_pool - dec_spend).quantize(Decimal("0.01"))
+
 ACTIVE_PAYPAL_ACCOUNT = {
     "email": "buyer-corp@personal.example.com",
     "payer_id": "PAYER_99A1B2C3",
@@ -2739,8 +2747,7 @@ async def demo_delivery():
         }
     }
     async with LEDGER_LOCK:
-        if ACTIVE_MANDATE.get("remaining_pool", 0) >= laptop_amount:
-            ACTIVE_MANDATE["remaining_pool"] -= laptop_amount
+        _deduct_remaining_pool(laptop_amount)
         insert_ledger_transaction(tx)
     return {
         "status": tx_status,
@@ -2808,8 +2815,7 @@ async def demo_lost_package():
         }
     }
     async with LEDGER_LOCK:
-        if ACTIVE_MANDATE.get("remaining_pool", 0) >= laptop_amount:
-            ACTIVE_MANDATE["remaining_pool"] -= laptop_amount
+        _deduct_remaining_pool(laptop_amount)
         insert_ledger_transaction(tx)
         kill_switch.record_dispute(dispute_id)
     return {
@@ -3186,8 +3192,7 @@ async def maker_checker_flow(payload: Dict[str, Any]):
             "live_call": order_res.get("live_call", False)
         }
     }
-    if ACTIVE_MANDATE.get("remaining_pool", 0) >= amount:
-        ACTIVE_MANDATE["remaining_pool"] -= amount
+    _deduct_remaining_pool(amount)
     async with LEDGER_LOCK:
         insert_ledger_transaction(tx)
     return {

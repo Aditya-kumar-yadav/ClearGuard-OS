@@ -109,33 +109,33 @@ export const SettlementFlowModal: React.FC<SettlementFlowModalProps> = ({
       ];
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-5 bg-black/85 overscroll-contain">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-5 bg-slate-900/35 backdrop-blur-sm overscroll-contain">
       <div
-        className={`w-full max-w-xl rounded-[28px] border bg-[#101217] text-white shadow-2xl overflow-hidden transition-colors ${
+        className={`w-full max-w-xl rounded-[28px] border bg-white text-slate-900 shadow-2xl overflow-hidden transition-colors ${
           isSuccess && isCapture
-            ? "border-[#1ed760]/60 shadow-[0_24px_70px_rgba(30,215,96,0.22)]"
+            ? "border-emerald-300 shadow-[0_24px_70px_rgba(16,185,129,0.16)]"
             : isError || (isSuccess && !isCapture)
-            ? "border-rose-500/50 shadow-[0_24px_70px_rgba(244,63,94,0.2)]"
-            : "border-sky-500/40 shadow-[0_24px_70px_rgba(56,189,248,0.18)]"
+            ? "border-rose-300 shadow-[0_24px_70px_rgba(244,63,94,0.16)]"
+            : "border-[#dcd4f5] shadow-[0_24px_70px_rgba(124,58,237,0.16)]"
         }`}
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-white/[0.08] bg-[#0b0c10] flex items-center justify-between gap-3">
+        <div className="px-5 py-4 border-b border-[#ece8f8] bg-[#f8f7fc] flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div
               className={`w-9 h-9 rounded-2xl border flex items-center justify-center shrink-0 ${
                 isSuccess && isCapture
-                  ? "bg-[#1ed760]/15 border-[#1ed760]/40"
+                  ? "bg-emerald-50 border-emerald-200"
                   : isRunning
-                  ? "bg-sky-500/15 border-sky-500/40"
-                  : "bg-rose-500/15 border-rose-500/40"
+                  ? "bg-violet-50 border-violet-200"
+                  : "bg-rose-50 border-rose-200"
               }`}
             >
               <PayPalLogo className="w-5 h-5" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-extrabold tracking-tight text-white truncate">
+                <h3 className="text-sm font-extrabold tracking-tight text-slate-900 truncate">
                   {isRunning
                     ? isCapture
                       ? "Executing Live PayPal Payout..."
@@ -147,18 +147,18 @@ export const SettlementFlowModal: React.FC<SettlementFlowModalProps> = ({
                     : "Settlement Intercepted"}
                 </h3>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase ${
+                  className={`px-2.5 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase ${
                     isRunning
-                      ? "bg-sky-500/20 text-sky-300 border border-sky-500/30 animate-pulse"
+                      ? "bg-violet-100 text-[#6d28d9] border border-violet-200 animate-pulse"
                       : isSuccess && isCapture
-                      ? "bg-[#1ed760]/20 text-[#1ed760] border border-[#1ed760]/40"
-                      : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      : "bg-rose-50 text-rose-700 border border-rose-200"
                   }`}
                 >
                   {isRunning ? "LIVE API" : isSuccess ? (isCapture ? "PAID • 200 OK" : "VOIDED") : "FAILED"}
                 </span>
               </div>
-              <p className="text-[11px] font-mono text-zinc-400 truncate">
+              <p className="text-[11px] font-mono text-slate-500 truncate">
                 {tx.id} &bull; {tx.item_name} &bull; {formatTxMoney(tx)}
               </p>
             </div>
@@ -168,7 +168,7 @@ export const SettlementFlowModal: React.FC<SettlementFlowModalProps> = ({
             type="button"
             onClick={onClose}
             disabled={isRunning}
-            className="p-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-white disabled:opacity-35 transition-colors cursor-pointer"
+            className="p-1.5 rounded-xl bg-white hover:bg-violet-50 border border-[#ece8f8] text-slate-500 hover:text-slate-900 disabled:opacity-35 transition-colors cursor-pointer"
             title="Close"
           >
             <X className="w-4 h-4" />
@@ -178,30 +178,30 @@ export const SettlementFlowModal: React.FC<SettlementFlowModalProps> = ({
         {/* Body */}
         <div className="p-5 space-y-4">
           {/* Money Movement Visual Rail */}
-          <div className="rounded-2xl border border-white/[0.07] bg-[#0a0b0e] p-3.5">
+          <div className="rounded-2xl border border-[#ebe6fa] bg-[#faf9ff] p-3.5">
             <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 text-center">
-              <div className="rounded-xl bg-[#13151c] border border-zinc-800 px-2.5 py-2">
-                <span className="text-[9px] font-mono text-zinc-500 block uppercase">Buyer Sandbox</span>
-                <span className="text-[11px] font-bold text-zinc-200 block truncate">Reserved Hold</span>
+              <div className="rounded-xl bg-white border border-[#ebe6fa] px-2.5 py-2 shadow-xs">
+                <span className="text-[9px] font-mono text-slate-400 block uppercase">Buyer Sandbox</span>
+                <span className="text-[11px] font-bold text-slate-800 block truncate">Reserved Hold</span>
               </div>
 
               <ArrowRight
                 className={`w-4 h-4 ${
-                  isRunning ? "text-sky-400 animate-pulse" : isSuccess ? "text-[#1ed760]" : "text-zinc-600"
+                  isRunning ? "text-[#7c3aed] animate-pulse" : isSuccess ? "text-emerald-600" : "text-slate-400"
                 }`}
               />
 
               <div
-                className={`rounded-xl border px-2.5 py-2 transition-colors ${
+                className={`rounded-xl border px-2.5 py-2 transition-colors shadow-xs ${
                   isRunning
-                    ? "bg-sky-950/30 border-sky-500/40"
+                    ? "bg-violet-50 border-violet-200"
                     : isSuccess && isCapture
-                    ? "bg-[#0c2618] border-[#1ed760]/40"
-                    : "bg-[#13151c] border-zinc-800"
+                    ? "bg-emerald-50 border-emerald-200"
+                    : "bg-white border-[#ebe6fa]"
                 }`}
               >
-                <span className="text-[9px] font-mono text-zinc-400 block uppercase">PayPal Escrow</span>
-                <span className="text-[11px] font-extrabold text-white block tabular-nums">
+                <span className="text-[9px] font-mono text-slate-500 block uppercase">PayPal Escrow</span>
+                <span className="text-[11px] font-extrabold text-slate-900 block tabular-nums">
                   {formatTxMoney(tx)}
                 </span>
               </div>
@@ -209,32 +209,32 @@ export const SettlementFlowModal: React.FC<SettlementFlowModalProps> = ({
               <ArrowRight
                 className={`w-4 h-4 ${
                   isRunning
-                    ? "text-sky-400 animate-pulse"
+                    ? "text-[#7c3aed] animate-pulse"
                     : isSuccess && isCapture
-                    ? "text-[#1ed760]"
-                    : "text-rose-400"
+                    ? "text-emerald-600"
+                    : "text-rose-500"
                 }`}
               />
 
               <div
-                className={`rounded-xl border px-2.5 py-2 transition-colors ${
+                className={`rounded-xl border px-2.5 py-2 transition-colors shadow-xs ${
                   isSuccess && isCapture
-                    ? "bg-[#0c2618] border-[#1ed760]/60 shadow-[0_0_20px_rgba(30,215,96,0.2)]"
+                    ? "bg-emerald-50 border-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.12)]"
                     : isSuccess && !isCapture
-                    ? "bg-rose-950/30 border-rose-500/40"
-                    : "bg-[#13151c] border-zinc-800"
+                    ? "bg-rose-50 border-rose-200"
+                    : "bg-white border-[#ebe6fa]"
                 }`}
               >
-                <span className="text-[9px] font-mono text-zinc-400 block uppercase">
+                <span className="text-[9px] font-mono text-slate-500 block uppercase">
                   {isCapture ? tx.merchant_name || "Merchant" : "Buyer Refunded"}
                 </span>
                 <span
                   className={`text-[11px] font-extrabold block truncate ${
                     isSuccess && isCapture
-                      ? "text-[#1ed760]"
+                      ? "text-emerald-700"
                       : isSuccess
-                      ? "text-rose-300"
-                      : "text-zinc-400"
+                      ? "text-rose-700"
+                      : "text-slate-500"
                   }`}
                 >
                   {isRunning ? "Settling..." : isSuccess && isCapture ? "PAID" : isSuccess ? "RETURNED" : "HELD"}
@@ -255,39 +255,39 @@ export const SettlementFlowModal: React.FC<SettlementFlowModalProps> = ({
                   key={step.id}
                   className={`rounded-2xl border px-3.5 py-2.5 flex items-start gap-3 transition-all ${
                     stepActive
-                      ? "bg-sky-500/10 border-sky-400/50 shadow-[0_0_20px_rgba(56,189,248,0.14)]"
+                      ? "bg-violet-50 border-violet-300 shadow-sm"
                       : stepDone
                       ? isCapture
-                        ? "bg-[#0a1d13] border-[#1ed760]/35"
-                        : "bg-rose-950/25 border-rose-500/35"
+                        ? "bg-emerald-50/70 border-emerald-200"
+                        : "bg-rose-50/70 border-rose-200"
                       : stepFailed
-                      ? "bg-rose-950/40 border-rose-500/50"
-                      : "bg-[#14161d] border-white/[0.05] opacity-60"
+                      ? "bg-rose-50 border-rose-300"
+                      : "bg-[#f8f7fc] border-[#ebe6fa] opacity-65"
                   }`}
                 >
                   <div className="mt-0.5 shrink-0">
                     {stepActive ? (
-                      <Loader2 className="w-4 h-4 text-sky-400 animate-spin" />
+                      <Loader2 className="w-4 h-4 text-[#7c3aed] animate-spin" />
                     ) : stepDone ? (
-                      <CheckCircle2 className={`w-4 h-4 ${isCapture ? "text-[#1ed760]" : "text-rose-400"}`} />
+                      <CheckCircle2 className={`w-4 h-4 ${isCapture ? "text-emerald-600" : "text-rose-600"}`} />
                     ) : stepFailed ? (
-                      <ShieldAlert className="w-4 h-4 text-rose-400" />
+                      <ShieldAlert className="w-4 h-4 text-rose-600" />
                     ) : (
-                      <Server className="w-4 h-4 text-zinc-600" />
+                      <Server className="w-4 h-4 text-slate-400" />
                     )}
                   </div>
 
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-white truncate">
+                      <span className="text-xs font-bold text-slate-900 truncate">
                         {step.id}. {step.title}
                       </span>
-                      <span className="text-[10px] font-mono text-zinc-400 shrink-0">
+                      <span className="text-[10px] font-mono font-semibold text-slate-500 shrink-0">
                         {stepActive ? "CALLING..." : stepDone ? "200 OK" : stepFailed ? "ERROR" : "QUEUED"}
                       </span>
                     </div>
-                    <p className="text-[10px] font-mono text-sky-300/90 truncate">{step.endpoint}</p>
-                    <p className="text-[10px] text-zinc-400 truncate">{step.detail}</p>
+                    <p className="text-[10px] font-mono text-[#6d28d9] truncate">{step.endpoint}</p>
+                    <p className="text-[10px] text-slate-600 truncate">{step.detail}</p>
                   </div>
                 </div>
               );
@@ -299,36 +299,36 @@ export const SettlementFlowModal: React.FC<SettlementFlowModalProps> = ({
             <div
               className={`rounded-2xl border p-3.5 flex items-center justify-between gap-3 ${
                 isCapture
-                  ? "bg-[#0b2316] border-[#1ed760]/45"
-                  : "bg-rose-950/30 border-rose-500/40"
+                  ? "bg-emerald-50 border-emerald-200"
+                  : "bg-rose-50 border-rose-200"
               }`}
             >
               <div className="min-w-0 space-y-0.5">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 block">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 block">
                   {isCapture ? "PayPal Live Capture Confirmation" : "PayPal Protection Confirmation"}
                 </span>
-                <p className={`text-xs font-mono font-bold truncate ${isCapture ? "text-[#1ed760]" : "text-rose-300"}`}>
+                <p className={`text-xs font-mono font-bold truncate ${isCapture ? "text-emerald-700" : "text-rose-700"}`}>
                   {isCapture
                     ? `Capture ID: ${captureId || "Confirmed"} (${result?.capture_status || "COMPLETED"})`
                     : result?.message || "Authorization voided on PayPal Sandbox."}
                 </p>
               </div>
-              <CreditCard className={`w-5 h-5 shrink-0 ${isCapture ? "text-[#1ed760]" : "text-rose-400"}`} />
+              <CreditCard className={`w-5 h-5 shrink-0 ${isCapture ? "text-emerald-600" : "text-rose-600"}`} />
             </div>
           )}
 
           {isError && (
-            <div className="rounded-2xl border border-rose-500/45 bg-rose-950/35 p-3 text-xs text-rose-200 flex items-start gap-2">
-              <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 flex items-start gap-2">
+              <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <span>{errorMessage || "PayPal API rejected settlement call."}</span>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 border-t border-white/[0.08] bg-[#0b0c10] flex items-center justify-between gap-2">
-          <span className="text-[10px] font-mono text-zinc-500 inline-flex items-center gap-1">
-            <Lock className="w-3 h-3" />
+        <div className="px-5 py-3.5 border-t border-[#ece8f8] bg-[#f8f7fc] flex items-center justify-between gap-2">
+          <span className="text-[10px] font-mono text-slate-500 inline-flex items-center gap-1">
+            <Lock className="w-3 h-3 text-[#7c3aed]" />
             <span>PayPal Sandbox Orders v2</span>
           </span>
 
@@ -337,9 +337,9 @@ export const SettlementFlowModal: React.FC<SettlementFlowModalProps> = ({
               <button
                 type="button"
                 onClick={() => onOpenReceipt(tx)}
-                className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-semibold text-zinc-200 inline-flex items-center gap-1.5 cursor-pointer"
+                className="btn-secondary px-3.5 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
               >
-                <Shield className="w-3.5 h-3.5 text-[#1ed760]" />
+                <Shield className="w-3.5 h-3.5 text-[#7c3aed]" />
                 <span>Inspect Proof</span>
               </button>
             )}
@@ -349,8 +349,8 @@ export const SettlementFlowModal: React.FC<SettlementFlowModalProps> = ({
               disabled={isRunning}
               className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer disabled:opacity-40 ${
                 isSuccess && isCapture
-                  ? "bg-[#1ed760] hover:bg-emerald-300 text-black shadow-[0_0_20px_rgba(30,215,96,0.28)]"
-                  : "bg-white hover:bg-zinc-200 text-black"
+                  ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm"
+                  : "btn-violet"
               }`}
             >
               {isRunning ? "Calling PayPal..." : "Done"}

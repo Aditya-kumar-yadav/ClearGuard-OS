@@ -67,16 +67,34 @@ function EscrowReturnContent() {
   }, [token, payerId]);
 
   return (
-    <div className="min-h-screen bg-[#0a0f1c] text-slate-100 flex items-center justify-center p-6">
-      <div className="max-w-lg w-full bg-[#111827] border border-slate-800 rounded-2xl p-8 shadow-2xl space-y-6">
-        <div className="flex items-center gap-3">
-          {state === "loading" && <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />}
-          {state === "authorized" && <CheckCircle2 className="w-8 h-8 text-emerald-400" />}
-          {state === "pending" && <ShieldCheck className="w-8 h-8 text-amber-400" />}
-          {state === "error" && <AlertTriangle className="w-8 h-8 text-red-400" />}
+    <div className="min-h-screen bg-gradient-to-br from-[#f6f4fe] via-[#faf9ff] to-[#f1edfc] text-slate-900 flex items-center justify-center p-6">
+      <div className="max-w-lg w-full surface-card bg-white border border-[#ece8f8] rounded-3xl p-8 shadow-xl shadow-violet-950/5 space-y-6">
+        <div className="flex items-center gap-3.5">
+          {state === "loading" && (
+            <div className="w-12 h-12 rounded-2xl bg-violet-50 border border-violet-200 flex items-center justify-center shrink-0">
+              <Loader2 className="w-6 h-6 text-[#7c3aed] animate-spin" />
+            </div>
+          )}
+          {state === "authorized" && (
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+            </div>
+          )}
+          {state === "pending" && (
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-6 h-6 text-amber-600" />
+            </div>
+          )}
+          {state === "error" && (
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-6 h-6 text-rose-600" />
+            </div>
+          )}
           <div>
-            <p className="text-xs font-mono uppercase tracking-wider text-slate-400">ClearGuard OS • PayPal Escrow Return</p>
-            <h1 className="text-xl font-bold text-white">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#7c3aed]">
+              AuroraPay • ClearGuard PayPal Return
+            </p>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
               {state === "loading"
                 ? "Authorizing Escrow Hold..."
                 : state === "authorized"
@@ -88,29 +106,50 @@ function EscrowReturnContent() {
           </div>
         </div>
 
-        <p className="text-sm text-slate-300 leading-relaxed">{message}</p>
+        <p className="text-sm text-slate-600 leading-relaxed">{message}</p>
 
-        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 font-mono text-xs space-y-1.5 text-slate-300">
-          <div>PayPal Order ID: <span className="text-white">{token || "N/A"}</span></div>
-          {payerId && <div>Payer ID: <span className="text-white">{payerId}</span></div>}
-          {details?.tx_id && <div>Transaction ID: <span className="text-emerald-300">{details.tx_id}</span></div>}
-          {details?.paypal_auth_id && <div>Authorization ID: <span className="text-emerald-300">{details.paypal_auth_id}</span></div>}
+        <div className="surface-card-subtle bg-[#f8f7fc] border border-[#ebe6fa] rounded-2xl p-4 font-mono text-xs space-y-2 text-slate-600">
+          <div className="flex justify-between gap-3">
+            <span className="text-slate-500">PayPal Order ID</span>
+            <span className="text-slate-900 font-semibold">{token || "N/A"}</span>
+          </div>
+          {payerId && (
+            <div className="flex justify-between gap-3">
+              <span className="text-slate-500">Payer ID</span>
+              <span className="text-slate-900 font-semibold">{payerId}</span>
+            </div>
+          )}
+          {details?.tx_id && (
+            <div className="flex justify-between gap-3">
+              <span className="text-slate-500">Transaction ID</span>
+              <span className="text-emerald-700 font-bold">{details.tx_id}</span>
+            </div>
+          )}
+          {details?.paypal_auth_id && (
+            <div className="flex justify-between gap-3">
+              <span className="text-slate-500">Authorization ID</span>
+              <span className="text-[#6d28d9] font-bold">{details.paypal_auth_id}</span>
+            </div>
+          )}
           {details?.amount != null && (
-            <div>Escrow Amount: <span className="text-white">{details.currency || "USD"} {details.amount}</span></div>
+            <div className="flex justify-between gap-3 pt-1.5 border-t border-[#ebe6fa]">
+              <span className="text-slate-500">Escrow Amount</span>
+              <span className="text-slate-900 font-bold">{details.currency || "USD"} {details.amount}</span>
+            </div>
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-3 pt-2">
+        <div className="flex items-center justify-between gap-3 pt-1">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors"
+            className="btn-violet inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all"
           >
             <ArrowLeft className="w-4 h-4" /> Return to Dashboard
           </Link>
           {state === "error" && token && (
             <button
               onClick={runAuthorization}
-              className="px-4 py-2.5 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-200 text-sm font-medium transition-colors"
+              className="btn-secondary px-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
             >
               Retry Authorization
             </button>
@@ -123,7 +162,7 @@ function EscrowReturnContent() {
 
 export default function EscrowReturnPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#0a0f1c] text-slate-300 flex items-center justify-center">Loading PayPal return handler...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-[#f6f4fe] text-slate-600 flex items-center justify-center font-medium">Loading PayPal return handler...</div>}>
       <EscrowReturnContent />
     </Suspense>
   );

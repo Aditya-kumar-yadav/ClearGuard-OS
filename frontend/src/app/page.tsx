@@ -32,6 +32,8 @@ import {
   Cpu,
   Briefcase,
   Trash2,
+  LayoutGrid,
+  Table2,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { Product } from "@/components/ProductCatalog";
@@ -41,7 +43,8 @@ import { CustomProcureModal } from "@/components/CustomProcureModal";
 import { AuditModal } from "@/components/AuditModal";
 import { SettlementFlowModal, SettlementFlowState } from "@/components/SettlementFlowModal";
 import { EdgeDockRail } from "@/components/EdgeDockRail";
-import { PayPalLogo, GeminiLogo, VisionLensLogo, AuroraShieldLogo } from "@/components/BrandLogos";
+import { TransactionsAgGrid } from "@/components/TransactionsAgGrid";
+import { PayPalLogo, VisionLensLogo, AuroraShieldLogo } from "@/components/BrandLogos";
 import { fetcher, NETWORK_ANOMALY_EVENT } from "@/lib/fetcher";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -196,6 +199,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<NavSection>("overview");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [orderFilter, setOrderFilter] = useState<"all" | "pending" | "authorized" | "captured" | "disputed" | "blocked">("all");
+  const [orderViewMode, setOrderViewMode] = useState<"cards" | "grid">("cards");
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -805,7 +809,7 @@ export default function Home() {
     if (!agentPrompt.trim()) return;
     setLoading(true);
     setBusyAction("agent");
-    setNotice({ status: "LOADING", title: "Gemini Agent Executing", message: "Parsing request with Google Gemini & running OpenGuardrails..." });
+    setNotice({ status: "LOADING", title: "AI Auto-Buy Executing", message: "Parsing request & running OpenGuardrails policy verification..." });
     try {
       const res = await fetch(`${API_BASE}/api/agent/procure`, {
         method: "POST",
@@ -820,21 +824,21 @@ export default function Home() {
           confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
           setNotice({
             status: "SUCCESS",
-            title: "Gemini Agent → PayPal Order Created",
+            title: "AI Auto-Buy → PayPal Order Created",
             message: `${data?.agent?.analysis?.item_name} submitted to PayPal Orders v2 (${data?.order?.paypal_order_id}).`,
           });
         } else {
           setNotice({
             status: "BLOCKED",
-            title: `Gemini Agent: ${data.status}`,
+            title: `AI Auto-Buy: ${data.status}`,
             message: data?.guardrail_detail?.message || data?.guardrail_detail?.reason || "Blocked by policy guardrails.",
           });
         }
       } else {
         setNotice({
           status: "BLOCKED",
-          title: "Gemini Agent Error",
-          message: data?.detail?.message || data?.message || "Gemini Agent request failed.",
+          title: "AI Auto-Buy Blocked",
+          message: data?.detail?.message || data?.message || "AI Auto-Buy request failed.",
         });
       }
     } catch (e: any) {
@@ -847,12 +851,12 @@ export default function Home() {
 
 
   const getProductIcon = (cat: string, id: string) => {
-    if (cat === "luxury") return <Watch className="w-5 h-5 text-rose-400" />;
-    if (cat === "cloud") return <Server className="w-5 h-5 text-sky-400" />;
-    if (cat === "hardware") return <Cpu className="w-5 h-5 text-amber-400" />;
-    if (cat === "office") return <Briefcase className="w-5 h-5 text-indigo-400" />;
-    if (id === "PROD-001") return <Smartphone className="w-5 h-5 text-emerald-400" />;
-    return <Laptop className="w-5 h-5 text-emerald-400" />;
+    if (cat === "luxury") return <Watch className="w-5 h-5 text-rose-500" />;
+    if (cat === "cloud") return <Server className="w-5 h-5 text-sky-600" />;
+    if (cat === "hardware") return <Cpu className="w-5 h-5 text-amber-600" />;
+    if (cat === "office") return <Briefcase className="w-5 h-5 text-indigo-600" />;
+    if (id === "PROD-001") return <Smartphone className="w-5 h-5 text-emerald-600" />;
+    return <Laptop className="w-5 h-5 text-emerald-600" />;
   };
 
   const filteredProducts = products.filter((p) => {
@@ -879,12 +883,12 @@ export default function Home() {
   const poolUsagePct = mandate.total_pool > 0 ? Math.min(100, Math.round((mandate.remaining_pool / mandate.total_pool) * 100)) : 100;
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-zinc-100 font-sans flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-[#f6f4fe] via-[#faf9ff] to-[#f1edfc] text-slate-900 font-sans flex flex-col">
       {/* Circuit Breaker Alert Banner */}
       {killSwitchStatus.is_locked_down && (
-        <div className="bg-rose-950/90 border-b border-rose-500/60 px-6 py-2.5 flex items-center justify-between text-xs font-mono">
-          <div className="flex items-center gap-2 text-rose-200">
-            <ShieldAlert className="w-4 h-4 text-rose-400 animate-pulse" />
+        <div className="bg-rose-50 border-b border-rose-200 px-6 py-2.5 flex items-center justify-between text-xs font-mono">
+          <div className="flex items-center gap-2 text-rose-700 font-semibold">
+            <ShieldAlert className="w-4 h-4 text-rose-600 animate-pulse" />
             <span>SECURITY LOCKDOWN ACTIVE — ALL AGENT PROCUREMENT FROZEN</span>
           </div>
           <button
@@ -892,7 +896,7 @@ export default function Home() {
               await fetch(`${API_BASE}/api/kill-switch/reset`, { method: "POST" });
               await fetchData();
             }}
-            className="px-3 py-1 rounded-md bg-rose-600 hover:bg-rose-500 text-white font-semibold"
+            className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold shadow-sm"
           >
             Disarm Lock
           </button>
@@ -901,13 +905,13 @@ export default function Home() {
 
       {/* Network Anomaly Toast */}
       {anomalyToast && (
-        <div className="fixed top-4 right-4 z-50 max-w-sm bg-[#18181b] border border-rose-500/70 rounded-xl p-4 shadow-2xl flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+        <div className="fixed top-4 right-4 z-50 max-w-sm bg-white border border-rose-300 rounded-2xl p-4 shadow-xl flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
           <div className="flex-1 text-xs">
-            <p className="font-semibold text-rose-300">Circuit Breaker Engaged</p>
-            <p className="text-zinc-300 mt-0.5">{anomalyToast}</p>
+            <p className="font-semibold text-rose-700">Circuit Breaker Engaged</p>
+            <p className="text-slate-600 mt-0.5">{anomalyToast}</p>
           </div>
-          <button onClick={() => setAnomalyToast(null)} className="text-zinc-500 hover:text-white">
+          <button onClick={() => setAnomalyToast(null)} className="text-slate-400 hover:text-slate-700">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -915,31 +919,29 @@ export default function Home() {
 
       {/* GLOBAL TOP LOADING PROGRESS BAR */}
       {loading && (
-        <div className="fixed top-0 inset-x-0 z-[70] h-[3px] bg-zinc-900 overflow-hidden pointer-events-none">
-          <div className="h-full w-1/3 bg-gradient-to-r from-emerald-500 via-sky-400 to-emerald-400 animate-loading-bar" />
+        <div className="fixed top-0 inset-x-0 z-[70] h-[3px] bg-violet-100 overflow-hidden pointer-events-none">
+          <div className="h-full w-1/3 bg-gradient-to-r from-violet-600 via-indigo-500 to-violet-400 animate-loading-bar" />
         </div>
       )}
 
       {/* PC DESKTOP TOP NAVIGATION BAR */}
-      <header className="sticky top-0 z-40 bg-[#09090b]/95 border-b border-zinc-800/80">
-        <div className="max-w-[1440px] mx-auto px-6 h-16 flex items-center justify-between gap-6">
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-[#ece8f8] shadow-[0_2px_12px_rgba(109,40,217,0.04)]">
+        <div className="max-w-[1460px] w-full mx-auto pl-5 sm:pl-6 pr-20 sm:pr-24 h-16 flex items-center justify-between gap-3">
           {/* Left: Brand + Primary Desktop Navigation */}
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-                <AuroraShieldLogo className="w-6 h-6" />
+          <div className="flex items-center gap-3 2xl:gap-6 min-w-0">
+            <div className="flex items-center gap-2.5 shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-[#f3efff] border border-[#e0d4fc] flex items-center justify-center shadow-sm shrink-0">
+                <AuroraShieldLogo className="w-5 h-5" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold tracking-tight text-white">AuroraPay</span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">
-                    ClearGuard OS
-                  </span>
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold tracking-tight text-slate-900 whitespace-nowrap">AuroraPay</span>
+                <span className="hidden 2xl:inline-flex text-[10px] font-mono px-2 py-0.5 rounded-md bg-[#f5f3ff] border border-[#e5e0fa] text-slate-500 font-medium whitespace-nowrap">
+                  ClearGuard OS
+                </span>
               </div>
             </div>
 
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className="hidden xl:flex items-center gap-1 min-w-0">
               {[
                 { id: "overview", label: "Overview & Catalog", icon: ShoppingBag },
                 { id: "orders", label: `Escrow Orders (${transactions.length})`, icon: Activity },
@@ -952,10 +954,10 @@ export default function Home() {
                   <button
                     key={item.id}
                     onClick={() => setActiveTab(item.id as NavSection)}
-                    className={`px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors whitespace-nowrap ${
+                    className={`px-2.5 2xl:px-3.5 py-2 rounded-xl text-[11px] 2xl:text-xs font-medium flex items-center gap-1.5 transition-all whitespace-nowrap ${
                       isActive
-                        ? "bg-zinc-800 text-white"
-                        : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900"
+                        ? "bg-[#f2ecff] text-[#6d28d9] border border-[#e2d6fe] font-semibold shadow-sm"
+                        : "text-slate-600 hover:text-[#6d28d9] hover:bg-[#f7f4ff]"
                     }`}
                   >
                     <Icon className="w-3.5 h-3.5 shrink-0" />
@@ -967,10 +969,10 @@ export default function Home() {
           </div>
 
           {/* Right: Live Controls */}
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-1.5 2xl:gap-2 shrink-0">
             <button
               onClick={() => setCurrency(currency === "USD" ? "INR" : "USD")}
-              className="px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-mono text-zinc-200 transition-colors"
+              className="px-2.5 py-1.5 rounded-xl bg-[#f8f7fc] hover:bg-violet-50 border border-slate-200 hover:border-violet-200 text-xs font-mono font-semibold text-slate-800 transition-colors shrink-0"
               title="Switch display and order currency"
             >
               {currency}
@@ -978,44 +980,44 @@ export default function Home() {
 
             <button
               onClick={() => setIsSetAmountModalOpen(true)}
-              className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-medium text-zinc-200 hidden sm:flex items-center gap-1.5 transition-colors"
+              className="px-2.5 2xl:px-3 py-1.5 rounded-xl bg-white hover:bg-[#f8f7fc] border border-slate-200 hover:border-violet-200 text-xs font-medium text-slate-700 hidden sm:flex items-center gap-1.5 transition-colors shadow-xs shrink-0 whitespace-nowrap"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-400" />
+              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
               <span>Limits</span>
             </button>
 
             <button
               onClick={() => setIsAuthModalOpen(true)}
-              className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-medium text-zinc-200 flex items-center gap-1.5 transition-colors"
+              className="px-2.5 2xl:px-3 py-1.5 rounded-xl bg-white hover:bg-[#f8f7fc] border border-slate-200 hover:border-violet-200 text-xs font-semibold text-slate-800 flex items-center gap-1.5 transition-colors shadow-xs shrink-0 whitespace-nowrap"
             >
               <PayPalLogo className="w-3.5 h-3.5 shrink-0" />
-              <span className={`w-1.5 h-1.5 rounded-full ${connectedAccount ? "bg-emerald-400" : "bg-amber-400"}`} />
+              <span className={`w-2 h-2 rounded-full ${connectedAccount ? "bg-emerald-500" : "bg-amber-400"}`} />
               <span>{connectedAccount ? "PayPal Linked" : "Connect PayPal"}</span>
             </button>
 
             <button
               onClick={() => setIsCustomProcureOpen(true)}
-              className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-semibold flex items-center gap-1.5 transition-colors"
+              className="px-3 2xl:px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#6366f1] hover:from-[#8b5cf6] hover:to-[#6366f1] text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-[0_6px_16px_rgba(109,40,217,0.28)] shrink-0 whitespace-nowrap"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5 shrink-0" />
               <span>New Custom Order</span>
             </button>
           </div>
         </div>
 
-        {/* Mobile Secondary Tab Strip */}
-        <div className="md:hidden border-t border-zinc-800/80 px-4 py-2 flex items-center gap-2 overflow-x-auto">
+        {/* Tablet & Mobile Secondary Tab Strip */}
+        <div className="xl:hidden border-t border-[#ece8f8] pl-5 sm:pl-6 pr-20 sm:pr-24 py-2 flex items-center gap-2 overflow-x-auto bg-white">
           {[
-            { id: "overview", label: "Catalog" },
-            { id: "orders", label: `Orders (${transactions.length})` },
+            { id: "overview", label: "Overview & Catalog" },
+            { id: "orders", label: `Escrow Orders (${transactions.length})` },
             { id: "vision", label: "Vision Dashboard" },
-            { id: "settings", label: "Safeguards" },
+            { id: "settings", label: "Mandate & Safeguards" },
           ].map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id as NavSection)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap ${
-                activeTab === item.id ? "bg-zinc-800 text-white" : "text-zinc-400"
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${
+                activeTab === item.id ? "bg-[#f2ecff] text-[#6d28d9] font-semibold" : "text-slate-600"
               }`}
             >
               {item.label}
@@ -1028,101 +1030,101 @@ export default function Home() {
       <main className="flex-1 max-w-[1460px] w-full mx-auto pl-5 sm:pl-6 pr-20 sm:pr-24 py-6 space-y-6">
         {/* 4-COLUMN PC KPI BAR */}
         <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <div className="bg-[#111114] border border-zinc-800/90 rounded-xl p-4 space-y-2.5">
-            <div className="flex items-center justify-between text-xs text-zinc-400">
+          <div className="surface-card p-5 space-y-3">
+            <div className="flex items-center justify-between text-xs font-medium text-slate-500">
               <span>Escrow Pool Remaining</span>
-              <Wallet className="w-4 h-4 text-emerald-400" />
+              <Wallet className="w-4 h-4 text-[#7c3aed]" />
             </div>
             <div className="flex items-baseline justify-between">
-              <span className="text-xl font-bold text-white tabular-nums">{formatMoney(mandate.remaining_pool)}</span>
-              <span className="text-[11px] font-mono text-zinc-400">{poolUsagePct}% avail</span>
+              <span className="text-xl font-extrabold text-slate-900 tabular-nums">{formatMoney(mandate.remaining_pool)}</span>
+              <span className="text-[11px] font-mono text-slate-500">{poolUsagePct}% avail</span>
             </div>
-            <div className="w-full h-1.5 rounded-full bg-zinc-800 overflow-hidden">
-              <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${poolUsagePct}%` }} />
+            <div className="w-full h-1.5 rounded-full bg-[#ede9fe] overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-[#7c3aed] to-[#6366f1] rounded-full transition-all" style={{ width: `${poolUsagePct}%` }} />
             </div>
           </div>
 
-          <div className="bg-[#111114] border border-zinc-800/90 rounded-xl p-4 space-y-2">
-            <div className="flex items-center justify-between text-xs text-zinc-400">
+          <div className="surface-card p-5 space-y-2.5">
+            <div className="flex items-center justify-between text-xs font-medium text-slate-500">
               <span>Per-Order Cap</span>
-              <Shield className="w-4 h-4 text-sky-400" />
+              <Shield className="w-4 h-4 text-[#7c3aed]" />
             </div>
             <div className="flex items-baseline justify-between">
-              <span className="text-xl font-bold text-white tabular-nums">{formatMoney(mandate.max_single_spend)}</span>
+              <span className="text-xl font-extrabold text-slate-900 tabular-nums">{formatMoney(mandate.max_single_spend)}</span>
               <button
                 onClick={() => setIsSetAmountModalOpen(true)}
-                className="text-[11px] text-sky-400 hover:underline font-medium"
+                className="text-[11px] text-[#6d28d9] hover:text-violet-800 hover:underline font-semibold"
               >
                 Adjust
               </button>
             </div>
-            <p className="text-[11px] text-zinc-400 truncate">Allowed: {mandate.allowed_categories}</p>
+            <p className="text-[11px] text-slate-500 truncate">Allowed: {mandate.allowed_categories}</p>
           </div>
 
-          <div className="bg-[#111114] border border-zinc-800/90 rounded-xl p-4 space-y-2">
-            <div className="flex items-center justify-between text-xs text-zinc-400">
+          <div className="surface-card p-5 space-y-2.5">
+            <div className="flex items-center justify-between text-xs font-medium text-slate-500">
               <span>Escrow Pipeline</span>
-              <ShoppingBag className="w-4 h-4 text-amber-400" />
+              <ShoppingBag className="w-4 h-4 text-[#7c3aed]" />
             </div>
             <div className="flex items-baseline gap-4">
               <div>
-                <span className="text-xl font-bold text-white tabular-nums">{authorizedCount}</span>
-                <span className="text-xs text-zinc-400 ml-1">Authorized</span>
+                <span className="text-xl font-extrabold text-slate-900 tabular-nums">{authorizedCount}</span>
+                <span className="text-xs text-slate-500 ml-1">Authorized</span>
               </div>
               <div>
-                <span className="text-xl font-bold text-amber-300 tabular-nums">{pendingCount}</span>
-                <span className="text-xs text-zinc-400 ml-1">Pending</span>
+                <span className="text-xl font-extrabold text-[#6d28d9] tabular-nums">{pendingCount}</span>
+                <span className="text-xs text-slate-500 ml-1">Pending</span>
               </div>
             </div>
             <button
               onClick={() => setActiveTab("orders")}
-              className="text-[11px] text-zinc-300 hover:text-white inline-flex items-center gap-1"
+              className="text-[11px] text-[#6d28d9] hover:text-violet-800 font-semibold inline-flex items-center gap-1"
             >
               <span>Manage orders</span>
               <ArrowRight className="w-3 h-3" />
             </button>
           </div>
 
-          <div className="bg-[#111114] border border-zinc-800/90 rounded-xl p-4 space-y-2">
-            <div className="flex items-center justify-between text-xs text-zinc-400">
+          <div className="surface-card p-5 space-y-2.5">
+            <div className="flex items-center justify-between text-xs font-medium text-slate-500">
               <span>Live Backend &amp; APIs</span>
               <span
-                className={`w-2 h-2 rounded-full ${
-                  backendHealth.status === "ONLINE" ? "bg-emerald-400" : "bg-rose-500"
+                className={`w-2.5 h-2.5 rounded-full ${
+                  backendHealth.status === "ONLINE" ? "bg-emerald-500" : "bg-rose-500"
                 }`}
               />
             </div>
             <div className="flex items-center gap-2 flex-wrap pt-0.5">
               <span
-                className={`px-2 py-0.5 rounded text-[11px] font-mono border ${
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold border ${
                   backendHealth.status === "ONLINE"
-                    ? "bg-emerald-950/50 border-emerald-500/30 text-emerald-300"
-                    : "bg-rose-950/50 border-rose-500/30 text-rose-300"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                    : "bg-rose-50 border-rose-200 text-rose-700"
                 }`}
               >
                 API :8000 {backendHealth.status}
               </span>
               <span
-                className={`px-2 py-0.5 rounded text-[11px] font-mono border ${
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold border ${
                   backendHealth.paypal_configured
-                    ? "bg-sky-950/50 border-sky-500/30 text-sky-300"
-                    : "bg-amber-950/50 border-amber-500/30 text-amber-300"
+                    ? "bg-violet-50 border-violet-200 text-violet-700"
+                    : "bg-amber-50 border-amber-200 text-amber-700"
                 }`}
               >
                 PayPal: {backendHealth.paypal_configured ? "Ready" : "Missing"}
               </span>
               <span
-                className={`px-2 py-0.5 rounded text-[11px] font-mono border ${
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold border ${
                   backendHealth.gemini_configured
-                    ? "bg-purple-950/50 border-purple-500/30 text-purple-300"
-                    : "bg-amber-950/50 border-amber-500/30 text-amber-300"
+                    ? "bg-violet-50 border-violet-200 text-violet-700"
+                    : "bg-amber-50 border-amber-200 text-amber-700"
                 }`}
               >
-                Gemini: {backendHealth.gemini_configured ? "Ready" : "Missing"}
+                AI Engine: {backendHealth.gemini_configured ? "Ready" : "Missing"}
               </span>
             </div>
             {(!backendHealth.paypal_configured || !backendHealth.gemini_configured) && (
-              <p className="text-[11px] text-zinc-400">Add missing keys in <code className="text-zinc-300">.env</code></p>
+              <p className="text-[11px] text-slate-500">Add missing keys in <code className="text-slate-700">.env</code></p>
             )}
           </div>
         </section>
@@ -1130,24 +1132,24 @@ export default function Home() {
         {/* INLINE ACTION NOTICE */}
         {notice && (
           <div
-            className={`rounded-xl border px-4 py-3 flex items-start justify-between gap-4 text-xs transition-all ${
+            className={`rounded-2xl border px-4 py-3 flex items-start justify-between gap-4 text-xs shadow-sm transition-all ${
               notice.status === "SUCCESS" || notice.status === "CAPTURED"
-                ? "bg-emerald-950/30 border-emerald-500/40 text-emerald-200"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-900"
                 : notice.status === "BLOCKED" || notice.status === "ERROR" || notice.status === "DISPUTED"
-                ? "bg-rose-950/30 border-rose-500/40 text-rose-200"
+                ? "bg-rose-50 border-rose-200 text-rose-900"
                 : notice.status === "LOADING"
-                ? "bg-sky-950/30 border-sky-500/40 text-sky-100"
-                : "bg-[#111114] border-zinc-800 text-zinc-200"
+                ? "bg-violet-50 border-violet-200 text-violet-900"
+                : "bg-white border-[#ece8f8] text-slate-800"
             }`}
           >
             <div className="flex items-start gap-2.5">
-              {notice.status === "LOADING" && <Loader2 className="w-4 h-4 text-emerald-400 animate-spin shrink-0 mt-0.5" />}
+              {notice.status === "LOADING" && <Loader2 className="w-4 h-4 text-violet-600 animate-spin shrink-0 mt-0.5" />}
               <div className="space-y-0.5">
                 <p className="font-semibold text-sm">{notice.title || notice.status}</p>
-                <p className="text-zinc-300">{notice.message}</p>
+                <p className="opacity-85">{notice.message}</p>
               </div>
             </div>
-            <button onClick={() => setNotice(null)} className="text-zinc-400 hover:text-white p-1">
+            <button onClick={() => setNotice(null)} className="text-slate-400 hover:text-slate-700 p-1">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -1158,7 +1160,7 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Left 8 Columns: Product Catalog */}
             <div className="lg:col-span-8 space-y-4">
-              <div className="bg-[#111114] border border-zinc-800/90 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="surface-card p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {[
                     { id: "all", label: `All Items (${products.length})` },
@@ -1171,10 +1173,10 @@ export default function Home() {
                     <button
                       key={pill.id}
                       onClick={() => setCategoryFilter(pill.id)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
                         categoryFilter === pill.id
-                          ? "bg-zinc-100 text-zinc-900"
-                          : "bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                          ? "bg-[#f3efff] border-2 border-[#7c3aed] text-[#5b21b6] font-semibold shadow-xs"
+                          : "bg-white border border-slate-200 text-slate-600 hover:border-violet-300 hover:text-violet-700"
                       }`}
                     >
                       {pill.label}
@@ -1183,13 +1185,13 @@ export default function Home() {
                 </div>
 
                 <div className="relative w-full sm:w-64">
-                  <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Filter catalog..."
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
+                    className="w-full bg-[#f9f8fe] border border-slate-200 rounded-full pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-violet-500 focus:bg-white"
                   />
                 </div>
               </div>
@@ -1200,18 +1202,24 @@ export default function Home() {
                   return (
                     <div
                       key={product.id}
-                      className="bg-[#111114] border border-zinc-800/90 hover:border-zinc-700 rounded-xl p-5 flex flex-col justify-between gap-4 transition-colors"
+                      className="surface-card hover:border-violet-300 p-5 flex flex-col justify-between gap-4 transition-all"
                     >
                       <div className="space-y-3">
                         <div className="flex items-start justify-between gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
+                          <div
+                            className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${
+                              isPolicyTest
+                                ? "bg-rose-50 border-rose-200"
+                                : "bg-emerald-50 border-emerald-200"
+                            }`}
+                          >
                             {getProductIcon(product.category, product.id)}
                           </div>
                           <span
-                            className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded border ${
+                            className={`text-[10px] font-mono font-semibold uppercase px-2.5 py-0.5 rounded-full border ${
                               isPolicyTest
-                                ? "bg-rose-950/40 text-rose-300 border-rose-500/30"
-                                : "bg-zinc-900 text-zinc-400 border-zinc-800"
+                                ? "bg-rose-50 text-rose-600 border-rose-200"
+                                : "bg-violet-50 text-violet-700 border-violet-200"
                             }`}
                           >
                             {isPolicyTest ? "Restricted Category" : product.category}
@@ -1219,17 +1227,17 @@ export default function Home() {
                         </div>
 
                         <div>
-                          <h3 className="text-sm font-semibold text-white">{product.name}</h3>
-                          <p className="text-xs text-zinc-400 mt-0.5">{product.merchant}</p>
+                          <h3 className="text-sm font-bold text-slate-900">{product.name}</h3>
+                          <p className="text-xs text-slate-500 mt-0.5">{product.merchant}</p>
                         </div>
 
-                        <p className="text-xs text-zinc-400 leading-relaxed">{product.description}</p>
+                        <p className="text-xs text-slate-600 leading-relaxed">{product.description}</p>
                       </div>
 
-                      <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-between">
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                         <div>
-                          <span className="text-[10px] font-mono uppercase text-zinc-500 block">Escrow Hold</span>
-                          <span className={`text-base font-bold tabular-nums ${isPolicyTest ? "text-rose-400" : "text-white"}`}>
+                          <span className="text-[10px] font-mono uppercase text-slate-400 block">Escrow Hold</span>
+                          <span className={`text-base font-extrabold tabular-nums ${isPolicyTest ? "text-rose-600" : "text-slate-900"}`}>
                             {formatMoney(product.amount)}
                           </span>
                         </div>
@@ -1237,10 +1245,10 @@ export default function Home() {
                         <button
                           onClick={() => setCheckoutProduct(product)}
                           disabled={loading}
-                          className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                             isPolicyTest
-                              ? "bg-rose-950/60 hover:bg-rose-900/70 text-rose-200 border border-rose-500/40"
-                              : "bg-emerald-500 hover:bg-emerald-400 text-black"
+                              ? "bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200"
+                              : "bg-gradient-to-r from-[#7c3aed] to-[#6366f1] hover:from-[#8b5cf6] hover:to-[#6366f1] text-white shadow-[0_6px_16px_rgba(109,40,217,0.24)]"
                           }`}
                         >
                           {isPolicyTest ? "Test Guardrail Block" : "Procure via PayPal"}
@@ -1254,73 +1262,73 @@ export default function Home() {
 
             {/* Right 4 Columns: Compact AI Dock Trigger & Live Ledger */}
             <aside className="lg:col-span-4 lg:sticky lg:top-20 space-y-4">
-              {/* Sleek Launcher Card (Triggers the Floating Edge AI Quick-Buy Panel) */}
+              {/* Sleek Launcher Card (Matches vibrant purple gradient banner in screenshot) */}
               <button
                 type="button"
                 onClick={() => setIsEdgeBuyOpen((v) => !v)}
-                className="w-full text-left group relative overflow-hidden bg-gradient-to-br from-[#12131a] via-[#111114] to-[#0c1412] border border-zinc-800 hover:border-emerald-500/50 rounded-2xl p-4 transition-all"
+                className="w-full text-left group relative overflow-hidden bg-gradient-to-r from-[#7c3aed] via-[#6d28d9] to-[#6366f1] hover:from-[#8b5cf6] hover:to-[#6366f1] rounded-2xl p-4 shadow-[0_14px_30px_-8px_rgba(109,40,217,0.45)] transition-all"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-2xl bg-zinc-900 border border-zinc-700/80 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                      <GeminiLogo className="w-5 h-5" />
+                    <div className="w-10 h-10 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform backdrop-blur-sm">
+                      <Sparkles className="w-5 h-5 text-white" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-white">Gemini AI Auto-Buy</span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">
+                        <span className="text-sm font-bold text-white">AI Auto-Buy</span>
+                        <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-white/20 text-white border border-white/20">
                           Ready
                         </span>
                       </div>
-                      <p className="text-[11px] text-zinc-400 truncate mt-0.5">
+                      <p className="text-[11px] text-violet-100 truncate mt-0.5">
                         Click or use the right-edge dock icon to buy with plain English
                       </p>
                     </div>
                   </div>
-                  <ArrowRight className="w-4 h-4 text-zinc-400 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all shrink-0" />
+                  <ArrowRight className="w-4 h-4 text-white/90 group-hover:translate-x-1 transition-all shrink-0" />
                 </div>
               </button>
 
-              <div className="bg-[#111114] border border-zinc-800/90 rounded-xl p-5 space-y-3">
+              <div className="surface-card p-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-sm font-semibold text-white">Recent Ledger Activity</h2>
-                    <p className="text-[11px] text-zinc-400">Click any transaction to inspect SHA-256 &amp; Vision proof</p>
+                    <h2 className="text-sm font-bold text-slate-900">Recent Ledger Activity</h2>
+                    <p className="text-[11px] text-slate-500">Click any transaction to inspect SHA-256 &amp; Vision proof</p>
                   </div>
-                  <button onClick={() => setActiveTab("orders")} className="text-xs text-sky-400 hover:underline shrink-0">
+                  <button onClick={() => setActiveTab("orders")} className="text-xs font-semibold text-[#6d28d9] hover:underline shrink-0">
                     View all ({transactions.length})
                   </button>
                 </div>
-                <div className="divide-y divide-zinc-800/80">
+                <div className="divide-y divide-slate-100">
                   {transactions.slice(0, 4).map((tx) => (
                     <button
                       key={tx.id}
                       type="button"
                       onClick={() => setSelectedTx(tx)}
-                      className="w-full py-2.5 px-2 -mx-2 rounded-lg hover:bg-zinc-900/80 flex items-center justify-between gap-2 text-xs text-left transition-colors"
+                      className="w-full py-2.5 px-2 -mx-2 rounded-xl hover:bg-[#f7f5fe] flex items-center justify-between gap-2 text-xs text-left transition-colors"
                     >
                       <div className="min-w-0">
-                        <p className="font-medium text-white truncate">{tx.item_name}</p>
+                        <p className="font-semibold text-slate-900 truncate">{tx.item_name}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="text-[10px] font-mono text-zinc-500">{tx.id}</span>
+                          <span className="text-[10px] font-mono text-slate-400">{tx.id}</span>
                           <span
-                            className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                            className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full ${
                               tx.status === "CAPTURED"
-                                ? "bg-emerald-950/60 text-emerald-300"
-                                : tx.status === "BLOCKED" || tx.status === "DISPUTED"
-                                ? "bg-rose-950/60 text-rose-300"
-                                : "bg-amber-950/60 text-amber-300"
+                                ? "bg-emerald-50 text-emerald-700"
+                                : tx.status === "BLOCKED" || tx.status === "DISPUTED" || tx.status === "VOIDED"
+                                ? "bg-rose-50 text-rose-700"
+                                : "bg-violet-50 text-violet-700"
                             }`}
                           >
                             {tx.status}
                           </span>
                         </div>
                       </div>
-                      <span className="font-mono font-semibold text-zinc-200 shrink-0">{formatTxMoney(tx)}</span>
+                      <span className="font-mono font-bold text-slate-900 shrink-0">{formatTxMoney(tx)}</span>
                     </button>
                   ))}
                   {transactions.length === 0 && (
-                    <p className="text-xs text-zinc-500 py-4 text-center">No transactions recorded yet.</p>
+                    <p className="text-xs text-slate-400 py-4 text-center">No transactions recorded yet.</p>
                   )}
                 </div>
               </div>
@@ -1331,7 +1339,7 @@ export default function Home() {
         {/* ==================== TAB 2: STACKED FULL-DETAIL ESCROW ORDER CARDS ==================== */}
         {activeTab === "orders" && (
           <div className="space-y-5">
-            <div className="bg-[#111114] border border-zinc-800/90 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="surface-card p-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-1.5 flex-wrap">
                 {[
                   { id: "all", label: `All (${transactions.length})` },
@@ -1344,21 +1352,66 @@ export default function Home() {
                   <button
                     key={f.id}
                     onClick={() => setOrderFilter(f.id as any)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
-                      orderFilter === f.id ? "bg-zinc-100 text-zinc-900" : "bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${
+                      orderFilter === f.id
+                        ? "bg-[#f3efff] border-2 border-[#7c3aed] text-[#5b21b6] font-semibold"
+                        : "bg-white border border-slate-200 text-slate-600 hover:border-violet-300 hover:text-violet-700"
                     }`}
                   >
                     {f.label}
                   </button>
                 ))}
               </div>
-              <span className="text-[11px] font-mono text-zinc-400">
-                Capture Photo first &rarr; Inspect Photo unlocks on Processed / Declined orders
-              </span>
+
+              <div className="flex flex-wrap items-center gap-3 ml-auto">
+                <span className="hidden 2xl:inline text-[11px] font-mono text-slate-500">
+                  Capture Photo first &rarr; Inspect Photo unlocks on Processed / Declined orders
+                </span>
+                <div className="inline-flex items-center p-1 rounded-xl bg-[#f5f3ff] border border-[#e5e0fa]">
+                  <button
+                    type="button"
+                    onClick={() => setOrderViewMode("cards")}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      orderViewMode === "cards"
+                        ? "bg-white text-[#6d28d9] shadow-xs border border-[#e2d6fe]"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    Cards
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOrderViewMode("grid")}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      orderViewMode === "grid"
+                        ? "bg-gradient-to-r from-[#7c3aed] to-[#6366f1] text-white shadow-[0_4px_12px_rgba(109,40,217,0.28)]"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <Table2 className="w-3.5 h-3.5" />
+                    Audit Grid
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {filteredTransactions.length === 0 ? (
-              <div className="bg-[#111114] border border-zinc-800/90 rounded-2xl py-14 text-center text-zinc-500 text-xs">
+            {orderViewMode === "grid" ? (
+              <TransactionsAgGrid
+                transactions={filteredTransactions}
+                currency={currency}
+                rate={RATE}
+                busyAction={busyAction}
+                formatTxMoney={formatTxMoney}
+                formatMoney={formatMoney}
+                onInspect={(tx, tab) => openTxInspector(tx, tab || "hash_chain")}
+                onAuthorize={handleAuthorizeOrder}
+                onCapture={handleCaptureFunds}
+                onVoid={handleVoidOrDispute}
+                onDelete={handleDeleteOrder}
+              />
+            ) : filteredTransactions.length === 0 ? (
+              <div className="surface-card py-14 text-center text-slate-500 text-xs">
                 No orders match the current filter.
               </div>
             ) : (
@@ -1399,30 +1452,32 @@ export default function Home() {
                     tx.vision_approved === true || savedVisionAnalysis?.recommended_action === "CAPTURE_ESCROW";
 
                   const outerCardClass = isCaptured
-                    ? "bg-gradient-to-b from-[#113522] via-[#0b2618] to-[#081c11] border-[#1ed760]/70 shadow-[0_20px_50px_rgba(30,215,96,0.22)]"
+                    ? "bg-white border-emerald-300 shadow-[0_14px_34px_-10px_rgba(16,185,129,0.2)]"
                     : isAuthorized && visionPassed
-                    ? "bg-[#141f19] border-[#1ed760]/50 shadow-[0_20px_50px_rgba(30,215,96,0.14)]"
+                    ? "bg-white border-emerald-200 shadow-[0_14px_34px_-10px_rgba(16,185,129,0.14)]"
                     : isBlocked
-                    ? "bg-gradient-to-b from-[#201217] via-[#171216] to-[#121014] border-rose-500/35 hover:border-rose-500/55 shadow-[0_20px_50px_rgba(244,63,94,0.12)]"
-                    : "bg-[#18191e] hover:border-zinc-700/90 border-[#2a2c34] shadow-[0_20px_50px_rgba(0,0,0,0.55)]";
+                    ? "bg-white border-rose-200 hover:border-rose-300 shadow-[0_12px_30px_-10px_rgba(244,63,94,0.12)]"
+                    : "bg-white border-[#ece8f8] hover:border-violet-300 shadow-[0_12px_30px_-10px_rgba(109,40,217,0.10)]";
 
                   const innerScreenClass = isCaptured
-                    ? "bg-[#05140c] border-[#1ed760]/30"
+                    ? "bg-emerald-50/45 border-emerald-100"
                     : isBlocked
-                    ? "bg-[#0d090c] border-rose-500/20"
-                    : "bg-[#0a0b0e] border-white/[0.06]";
+                    ? "bg-rose-50/40 border-rose-100"
+                    : "bg-[#faf9ff] border-[#ede9fe]";
 
                   const telemetryBoxClass = isCaptured
-                    ? "bg-[#092114] border-[#1ed760]/25"
+                    ? "bg-white border-emerald-100"
                     : isBlocked
-                    ? "bg-[#160d11] border-rose-500/20"
-                    : "bg-[#121318] border-zinc-800/80";
+                    ? "bg-white border-rose-100"
+                    : "bg-white border-[#ebe6fa]";
 
-                  const topAmountPillClass = isGreenTheme
-                    ? "bg-[#1ed760] text-black shadow-[0_0_18px_rgba(30,215,96,0.32)]"
+                  const topAmountPillClass = isCaptured
+                    ? "bg-emerald-600 text-white shadow-sm"
+                    : isGreenTheme
+                    ? "bg-gradient-to-r from-[#7c3aed] to-[#6366f1] text-white shadow-sm"
                     : isRedTheme
-                    ? "bg-rose-500 text-white shadow-[0_0_18px_rgba(244,63,94,0.32)]"
-                    : "bg-amber-400 text-black shadow-[0_0_16px_rgba(251,191,36,0.3)]";
+                    ? "bg-rose-600 text-white shadow-sm"
+                    : "bg-amber-500 text-white shadow-sm";
 
                   const statusLabel = isCaptured
                     ? "PAID • CAPTURED"
@@ -1450,27 +1505,27 @@ export default function Home() {
                   return (
                     <div
                       key={tx.id}
-                      className={`w-full h-full rounded-[28px] p-4 border flex flex-col transition-colors ${outerCardClass}`}
+                      className={`w-full h-full rounded-[26px] p-4 border flex flex-col transition-all ${outerCardClass}`}
                     >
-                      {/* Top Header — Brand / Order ID + Neon Amount Stored on Top */}
+                      {/* Top Header — Brand / Order ID + Pill Amount */}
                       <div className="flex items-center justify-between gap-2 px-1.5 mb-3.5">
                         <div className="flex items-center gap-2 min-w-0">
                           <div
                             className={`w-7 h-7 rounded-xl border flex items-center justify-center shrink-0 ${
                               isCaptured
-                                ? "bg-[#092114] border-[#1ed760]/40"
-                                : "bg-zinc-900 border-zinc-800"
+                                ? "bg-emerald-50 border-emerald-200"
+                                : "bg-[#f5f3ff] border-[#e5e0fa]"
                             }`}
                           >
                             <PayPalLogo className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
-                            <span className="text-xs font-bold text-white tracking-wide block leading-none">
+                            <span className="text-xs font-bold text-slate-900 tracking-wide block leading-none">
                               AuroraPay
                             </span>
                             <span
                               className={`text-[10px] font-mono truncate block mt-0.5 ${
-                                isCaptured ? "text-emerald-300/80" : "text-zinc-500"
+                                isCaptured ? "text-emerald-700" : "text-slate-400"
                               }`}
                             >
                               {tx.id}
@@ -1490,10 +1545,10 @@ export default function Home() {
                             disabled={busyAction === `delete:${tx.id}`}
                             title="Delete order from cart"
                             aria-label={`Delete order ${tx.id}`}
-                            className="w-8 h-8 rounded-full flex items-center justify-center border border-white/10 bg-white/[0.04] text-zinc-400 hover:text-rose-400 hover:bg-rose-500/15 hover:border-rose-500/35 disabled:opacity-40 transition-colors cursor-pointer"
+                            className="w-8 h-8 rounded-full flex items-center justify-center border border-slate-200 bg-white text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 disabled:opacity-40 transition-colors cursor-pointer"
                           >
                             {busyAction === `delete:${tx.id}` ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-400" />
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-500" />
                             ) : (
                               <Trash2 className="w-3.5 h-3.5" />
                             )}
@@ -1503,22 +1558,24 @@ export default function Home() {
 
                       {/* Inner Matte Card Screen */}
                       <div
-                        className={`rounded-3xl p-4 sm:p-5 shadow-inner border flex-1 flex flex-col justify-between gap-4 ${innerScreenClass}`}
+                        className={`rounded-3xl p-4 sm:p-5 border flex-1 flex flex-col justify-between gap-4 ${innerScreenClass}`}
                       >
                         <div className="space-y-4">
                           {/* Status & Category Tag Bar */}
                           <div className="flex items-center justify-between gap-2">
                             <div
-                              className={`inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.14em] uppercase ${
-                                isGreenTheme
-                                  ? "text-[#1ed760]"
+                              className={`inline-flex items-center gap-1.5 text-[10px] font-bold tracking-[0.12em] uppercase ${
+                                isCaptured
+                                  ? "text-emerald-700"
+                                  : isAuthorized
+                                  ? "text-[#6d28d9]"
                                   : isRedTheme
-                                  ? "text-rose-400"
-                                  : "text-amber-300"
+                                  ? "text-rose-600"
+                                  : "text-amber-700"
                               }`}
                             >
                               <span>• {statusLabel}</span>
-                              {isGreenTheme ? (
+                              {isCaptured ? (
                                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                               ) : isRedTheme ? (
                                 <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
@@ -1528,10 +1585,10 @@ export default function Home() {
                             </div>
 
                             <span
-                              className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded-md border ${
+                              className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded-full border ${
                                 isCaptured
-                                  ? "bg-[#0b2a19] border-[#1ed760]/30 text-emerald-300"
-                                  : "bg-zinc-900 border-zinc-800 text-zinc-400"
+                                  ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                  : "bg-violet-50 border-violet-200 text-violet-700"
                               }`}
                             >
                               {tx.category || "electronics"}
@@ -1542,11 +1599,11 @@ export default function Home() {
                           <div className="flex items-start gap-3.5">
                             {isBlocked ? (
                               <div
-                                className="relative w-[68px] h-[68px] rounded-xl border border-rose-500/35 bg-rose-950/35 shrink-0 flex flex-col items-center justify-center cursor-default"
+                                className="relative w-[68px] h-[68px] rounded-xl border border-rose-200 bg-rose-50 shrink-0 flex flex-col items-center justify-center cursor-default"
                                 title="Blocked pre-purchase by OpenGuardrails — not dispatched or eligible for photo audit"
                               >
                                 {getProductIcon(tx.category || "electronics", tx.id)}
-                                <span className="text-[8px] font-mono mt-1 uppercase text-rose-300 font-semibold">
+                                <span className="text-[8px] font-mono mt-1 uppercase text-rose-600 font-semibold">
                                   Blocked
                                 </span>
                               </div>
@@ -1556,8 +1613,8 @@ export default function Home() {
                                 onClick={() => openTxInspector(tx, "vision")}
                                 className={`relative w-[68px] h-[68px] rounded-xl border overflow-hidden shrink-0 flex flex-col items-center justify-center transition-colors cursor-pointer ${
                                   isCaptured
-                                    ? "bg-[#092114] border-[#1ed760]/70 hover:border-[#1ed760]"
-                                    : "bg-[#121318] border-[#1ed760]/60 hover:border-sky-400"
+                                    ? "bg-white border-emerald-400 hover:border-emerald-500"
+                                    : "bg-white border-violet-300 hover:border-violet-500"
                                 }`}
                                 title="Click to inspect saved POD photo and full order details"
                               >
@@ -1566,7 +1623,7 @@ export default function Home() {
                                   alt={tx.item_name}
                                   className="w-full h-full object-cover"
                                 />
-                                <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[8px] font-mono text-[#1ed760] text-center py-0.5 uppercase">
+                                <span className="absolute bottom-0 inset-x-0 bg-slate-900/80 text-[8px] font-mono text-emerald-300 text-center py-0.5 uppercase">
                                   {savedVisionAnalysis?.integrity_score
                                     ? `POD ${Math.round(Number(savedVisionAnalysis.integrity_score) * 100)}%`
                                     : "POD Saved"}
@@ -1576,12 +1633,12 @@ export default function Home() {
                               <label
                                 className={`relative w-[68px] h-[68px] rounded-xl border overflow-hidden shrink-0 flex flex-col items-center justify-center transition-colors ${
                                   isCaptured
-                                    ? "bg-[#092114] border-[#1ed760]/50"
+                                    ? "bg-emerald-50 border-emerald-200"
                                     : hasCapturedPhoto
-                                    ? "bg-[#121318] border-[#1ed760]/70"
+                                    ? "bg-violet-50 border-violet-300"
                                     : isProcessedOrDeclined
-                                    ? "bg-[#121318] border-zinc-700 hover:border-sky-400 cursor-pointer"
-                                    : "bg-[#121318] border-zinc-800/90 opacity-75 cursor-not-allowed"
+                                    ? "bg-white border-[#ddd6fe] hover:border-[#7c3aed] cursor-pointer"
+                                    : "bg-slate-50 border-slate-200 opacity-75 cursor-not-allowed"
                                 }`}
                                 title={
                                   isProcessedOrDeclined
@@ -1596,7 +1653,7 @@ export default function Home() {
                                       alt={tx.item_name}
                                       className="w-full h-full object-cover"
                                     />
-                                    <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[8px] font-mono text-[#1ed760] text-center py-0.5 uppercase">
+                                    <span className="absolute bottom-0 inset-x-0 bg-slate-900/80 text-[8px] font-mono text-emerald-300 text-center py-0.5 uppercase">
                                       Photo Ready
                                     </span>
                                   </>
@@ -1605,7 +1662,7 @@ export default function Home() {
                                     {getProductIcon(tx.category || "electronics", tx.id)}
                                     <span
                                       className={`text-[8px] font-mono mt-1 uppercase ${
-                                        isCaptured ? "text-emerald-300" : "text-zinc-500"
+                                        isCaptured ? "text-emerald-700" : "text-slate-500"
                                       }`}
                                     >
                                       {isCaptured ? "Paid" : isProcessedOrDeclined ? "Add Photo" : "Locked"}
@@ -1625,19 +1682,19 @@ export default function Home() {
                             )}
 
                             <div className="min-w-0 flex-1 space-y-1">
-                              <h3 className="text-[15px] font-bold text-white leading-snug line-clamp-2" title={tx.item_name}>
+                              <h3 className="text-[15px] font-bold text-slate-900 leading-snug line-clamp-2" title={tx.item_name}>
                                 {tx.item_name}
                               </h3>
-                              <p className={`text-xs truncate ${isCaptured ? "text-emerald-200/80" : "text-zinc-400"}`}>
+                              <p className={`text-xs truncate ${isCaptured ? "text-emerald-700" : "text-slate-500"}`}>
                                 {tx.merchant_name || "Commercial Vendor"}
                               </p>
                               <p
                                 className={`text-[10px] font-mono truncate ${
                                   isCaptured
-                                    ? "text-emerald-400/80"
+                                    ? "text-emerald-700/85"
                                     : isBlocked
-                                    ? "text-rose-300/85"
-                                    : "text-zinc-500"
+                                    ? "text-rose-600"
+                                    : "text-slate-500"
                                 }`}
                               >
                                 {isBlocked
@@ -1651,27 +1708,27 @@ export default function Home() {
                           {isBlocked ? (
                             <div className={`border rounded-2xl p-3 space-y-1.5 text-[11px] ${telemetryBoxClass}`}>
                               <div className="flex items-center justify-between gap-2">
-                                <span className="text-zinc-500 shrink-0">Policy Gate</span>
-                                <span className="font-mono text-rose-300 font-semibold truncate">
+                                <span className="text-slate-400 shrink-0">Policy Gate</span>
+                                <span className="font-mono text-rose-600 font-semibold truncate">
                                   HTTP 403 Pre-Purchase Intercept
                                 </span>
                               </div>
                               <div className="flex items-center justify-between gap-2">
-                                <span className="text-zinc-500 shrink-0">PayPal Escrow</span>
-                                <span className="font-mono text-zinc-300 truncate">
+                                <span className="text-slate-400 shrink-0">PayPal Escrow</span>
+                                <span className="font-mono text-slate-700 truncate">
                                   Not Created ($0 Reserved)
                                 </span>
                               </div>
                               <div className="flex items-center justify-between gap-2">
-                                <span className="text-zinc-500 shrink-0">Cart / Shipping</span>
-                                <span className="font-mono text-zinc-400 truncate">
+                                <span className="text-slate-400 shrink-0">Cart / Shipping</span>
+                                <span className="font-mono text-slate-500 truncate">
                                   Halted Before Checkout
                                   {tx.created_at ? ` • ${String(tx.created_at).slice(11, 16)}` : ""}
                                 </span>
                               </div>
-                              <div className="flex items-center justify-between gap-2 pt-1 border-t border-rose-500/20">
-                                <span className="text-zinc-500 shrink-0">Vision POD Audit</span>
-                                <span className="font-mono text-rose-400 font-semibold truncate">
+                              <div className="flex items-center justify-between gap-2 pt-1 border-t border-rose-100">
+                                <span className="text-slate-400 shrink-0">Vision POD Audit</span>
+                                <span className="font-mono text-rose-600 font-semibold truncate">
                                   Skipped — Blocked Before Delivery
                                 </span>
                               </div>
@@ -1679,14 +1736,12 @@ export default function Home() {
                           ) : (
                             <div className={`border rounded-2xl p-3 space-y-1.5 text-[11px] ${telemetryBoxClass}`}>
                               <div className="flex items-center justify-between gap-2">
-                                <span className={isCaptured ? "text-emerald-300/70 shrink-0" : "text-zinc-500 shrink-0"}>
-                                  PayPal Order
-                                </span>
-                                <span className="font-mono text-zinc-200 truncate">{tx.paypal_order_id || "—"}</span>
+                                <span className="text-slate-400 shrink-0">PayPal Order</span>
+                                <span className="font-mono text-slate-800 truncate">{tx.paypal_order_id || "—"}</span>
                               </div>
 
                               <div className="flex items-center justify-between gap-2">
-                                <span className={isCaptured ? "text-emerald-300/70 shrink-0" : "text-zinc-500 shrink-0"}>
+                                <span className="text-slate-400 shrink-0">
                                   {tx.paypal_capture_id
                                     ? "Capture ID"
                                     : tx.paypal_dispute_id
@@ -1694,12 +1749,12 @@ export default function Home() {
                                     : "Auth ID"}
                                 </span>
                                 <span
-                                  className={`font-mono truncate ${
+                                  className={`font-mono font-semibold truncate ${
                                     tx.paypal_capture_id
-                                      ? "text-[#1ed760] font-semibold"
+                                      ? "text-emerald-700"
                                       : tx.paypal_dispute_id
-                                      ? "text-rose-300"
-                                      : "text-sky-300"
+                                      ? "text-rose-600"
+                                      : "text-[#6d28d9]"
                                   }`}
                                 >
                                   {tx.paypal_capture_id || tx.paypal_dispute_id || tx.paypal_auth_id || "Awaiting Auth"}
@@ -1707,32 +1762,24 @@ export default function Home() {
                               </div>
 
                               <div className="flex items-center justify-between gap-2">
-                                <span className={isCaptured ? "text-emerald-300/70 shrink-0" : "text-zinc-500 shrink-0"}>
-                                  Tracking
-                                </span>
-                                <span className="font-mono text-zinc-300 truncate">
+                                <span className="text-slate-400 shrink-0">Tracking</span>
+                                <span className="font-mono text-slate-700 truncate">
                                   {tx.tracking_number || "Pending"}
                                   {tx.created_at ? ` • ${String(tx.created_at).slice(11, 16)}` : ""}
                                 </span>
                               </div>
 
-                              <div
-                                className={`flex items-center justify-between gap-2 pt-1 border-t ${
-                                  isCaptured ? "border-[#1ed760]/20" : "border-zinc-800/70"
-                                }`}
-                              >
-                                <span className={isCaptured ? "text-emerald-300/70 shrink-0" : "text-zinc-500 shrink-0"}>
-                                  Vision Audit
-                                </span>
+                              <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                                <span className="text-slate-400 shrink-0">Vision Audit</span>
                                 {hasRealVisionVerdict ? (
                                   <span
                                     className={`font-mono font-semibold truncate ${
                                       savedVisionAnalysis.recommended_action === "CAPTURE_ESCROW" ||
                                       savedVisionAnalysis.verdict === "VERIFIED_INTACT"
-                                        ? "text-[#1ed760]"
+                                        ? "text-emerald-700"
                                         : isAuthorized && tx.delivery_status === "VISION_MISMATCH_RETRY_PENDING"
-                                        ? "text-amber-300"
-                                        : "text-rose-400"
+                                        ? "text-amber-700"
+                                        : "text-rose-600"
                                     }`}
                                   >
                                     {isAuthorized && tx.delivery_status === "VISION_MISMATCH_RETRY_PENDING"
@@ -1740,9 +1787,9 @@ export default function Home() {
                                       : `${savedVisionAnalysis.verdict} (${(Number(savedVisionAnalysis.integrity_score || 0) * 100).toFixed(0)}%)`}
                                   </span>
                                 ) : hasCapturedPhoto ? (
-                                  <span className="font-mono text-sky-300 truncate">Photo ready &rarr; Inspect</span>
+                                  <span className="font-mono text-[#6d28d9] font-semibold truncate">Photo ready &rarr; Inspect</span>
                                 ) : (
-                                  <span className={`font-mono truncate ${isCaptured ? "text-emerald-400/70" : "text-zinc-500"}`}>
+                                  <span className={`font-mono truncate ${isCaptured ? "text-emerald-700" : "text-slate-400"}`}>
                                     {isCaptured
                                       ? "Escrow settled"
                                       : isPendingApproval
@@ -1756,10 +1803,8 @@ export default function Home() {
 
                               {(savedVisionAnalysis?.detected_item || tx.photo_evidence_hash) && (
                                 <div className="flex items-center justify-between gap-2 text-[10px]">
-                                  <span className={isCaptured ? "text-emerald-300/70 shrink-0" : "text-zinc-500 shrink-0"}>
-                                    Saved Proof
-                                  </span>
-                                  <span className="font-mono text-zinc-300 truncate">
+                                  <span className="text-slate-400 shrink-0">Saved Proof</span>
+                                  <span className="font-mono text-slate-600 truncate">
                                     {savedVisionAnalysis?.detected_item
                                       ? savedVisionAnalysis.detected_item
                                       : `SHA ${String(tx.photo_evidence_hash).slice(0, 12)}...`}
@@ -1770,12 +1815,12 @@ export default function Home() {
                           )}
 
                           {(isBlocked || tx.block_reason) && (
-                            <div className="text-[11px] bg-rose-950/35 border border-rose-500/25 rounded-xl px-3 py-2 space-y-1">
-                              <p className="text-rose-200 font-semibold leading-snug">
+                            <div className="text-[11px] bg-rose-50 border border-rose-200 rounded-xl px-3 py-2 space-y-1">
+                              <p className="text-rose-700 font-semibold leading-snug">
                                 {tx.block_reason || tx.maker_checker_audit?.reason || "Blocked by OpenGuardrails & Spending Mandate."}
                               </p>
                               {isBlocked && (
-                                <p className="text-[10px] text-rose-300/80 leading-snug">
+                                <p className="text-[10px] text-rose-600 leading-snug">
                                   Stopped before PayPal order creation — excluded from escrow queue, shipping, and delivery photo audit.
                                 </p>
                               )}
@@ -1786,13 +1831,13 @@ export default function Home() {
                         {/* Bottom Flexible Cart / Escrow Action Controls — ONLY Needed Options Per State */}
                         <div
                           className={`pt-3 border-t flex flex-wrap items-center justify-between gap-1.5 ${
-                            isCaptured ? "border-[#1ed760]/25" : isBlocked ? "border-rose-500/20" : "border-zinc-800/80"
+                            isCaptured ? "border-emerald-200" : isBlocked ? "border-rose-200" : "border-[#ebe6fa]"
                           }`}
                         >
                           <div className="flex flex-wrap items-center gap-1.5">
                             {isBlocked && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-mono text-rose-300/90 px-2 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20">
-                                <ShieldAlert className="w-3 h-3 text-rose-400" />
+                              <span className="inline-flex items-center gap-1 text-[10px] font-mono text-rose-700 px-2 py-1 rounded-lg bg-rose-50 border border-rose-200">
+                                <ShieldAlert className="w-3 h-3 text-rose-600" />
                                 <span>0 PayPal Calls</span>
                               </span>
                             )}
@@ -1802,7 +1847,7 @@ export default function Home() {
                                 href={tx.approval_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="px-2.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold inline-flex items-center gap-1"
+                                className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#6366f1] hover:from-[#8b5cf6] hover:to-[#6366f1] text-white text-[11px] font-semibold inline-flex items-center gap-1 shadow-xs"
                               >
                                 <ExternalLink className="w-3 h-3" />
                                 <span>Approve</span>
@@ -1813,7 +1858,7 @@ export default function Home() {
                               <button
                                 onClick={() => handleAuthorizeOrder(tx.paypal_order_id)}
                                 disabled={loading}
-                                className="px-2.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 disabled:opacity-60 text-black text-[11px] font-bold inline-flex items-center gap-1"
+                                className="px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-white text-[11px] font-bold inline-flex items-center gap-1"
                               >
                                 {busyAction === `auth:${tx.paypal_order_id}` ? (
                                   <>
@@ -1833,10 +1878,10 @@ export default function Home() {
                               <label
                                 className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-medium inline-flex items-center gap-1 ${
                                   loading
-                                    ? "bg-zinc-900/50 border-zinc-800 text-zinc-600 cursor-not-allowed opacity-55 pointer-events-none"
+                                    ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-55 pointer-events-none"
                                     : hasCapturedPhoto
-                                    ? "bg-emerald-950/45 hover:bg-emerald-950/70 border-emerald-500/40 text-emerald-300 cursor-pointer"
-                                    : "bg-zinc-900 hover:bg-zinc-800 border-zinc-700 text-zinc-200 cursor-pointer"
+                                    ? "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700 cursor-pointer"
+                                    : "bg-white hover:bg-[#f7f5fe] border-slate-200 hover:border-violet-300 text-slate-700 cursor-pointer"
                                 }`}
                                 title="Capture or upload delivery photo"
                               >
@@ -1858,7 +1903,7 @@ export default function Home() {
                                 disabled={loading}
                                 onClick={() => handleInspectRealPhoto(capturedPhoto?.file, tx.id, true)}
                                 title="Inspect captured photo with Gemini Vision"
-                                className="px-2.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-60 text-black text-[11px] font-semibold inline-flex items-center gap-1 transition-colors"
+                                className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#6366f1] hover:from-[#8b5cf6] hover:to-[#6366f1] disabled:opacity-60 text-white text-[11px] font-semibold inline-flex items-center gap-1 transition-all"
                               >
                                 {busyAction === `vision:${tx.id}` ? (
                                   <>
@@ -1885,7 +1930,7 @@ export default function Home() {
                                   setActiveTab("vision");
                                 }}
                                 disabled={loading}
-                                className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 text-[11px] font-semibold inline-flex items-center gap-1"
+                                className="px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-[11px] font-semibold inline-flex items-center gap-1"
                                 title="Re-upload correct POD photo in Vision Dashboard (PayPal hold is still intact)"
                               >
                                 <Camera className="w-3 h-3" />
@@ -1897,7 +1942,7 @@ export default function Home() {
                               <button
                                 onClick={() => handleCaptureFunds(tx.id)}
                                 disabled={loading}
-                                className="px-3 py-1.5 rounded-xl bg-[#1ed760] hover:bg-emerald-300 disabled:opacity-60 text-black text-[11px] font-extrabold inline-flex items-center gap-1 shadow-[0_0_14px_rgba(30,215,96,0.25)]"
+                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-xs"
                               >
                                 {busyAction === `capture:${tx.id}` ? (
                                   <>
@@ -1919,8 +1964,8 @@ export default function Home() {
                                 disabled={loading}
                                 className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-medium ${
                                   isCaptured
-                                    ? "bg-[#092114] hover:bg-rose-950/70 border-[#1ed760]/30 hover:border-rose-500/40 text-emerald-200 hover:text-rose-200"
-                                    : "bg-zinc-900 hover:bg-rose-950/70 border-zinc-800 hover:border-rose-500/40 text-rose-300"
+                                    ? "bg-white hover:bg-rose-50 border-emerald-200 hover:border-rose-200 text-slate-600 hover:text-rose-700"
+                                    : "bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700"
                                 }`}
                               >
                                 {busyAction === `void:${tx.id}` ? (
@@ -1939,8 +1984,8 @@ export default function Home() {
                                 onClick={() => openTxInspector(tx, "vision")}
                                 className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold inline-flex items-center gap-1 ${
                                   isCaptured
-                                    ? "bg-[#0b2a19] hover:bg-[#113d25] border-[#1ed760]/40 text-emerald-200"
-                                    : "bg-zinc-900 hover:bg-zinc-800 border-zinc-700 text-sky-300"
+                                    ? "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700"
+                                    : "bg-white hover:bg-[#f7f5fe] border-slate-200 text-[#6d28d9]"
                                 }`}
                                 title="Inspect saved POD image and Vision details"
                               >
@@ -1953,17 +1998,17 @@ export default function Home() {
                               onClick={() => openTxInspector(tx, isBlocked ? "maker_checker" : "hash_chain")}
                               className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold inline-flex items-center gap-1 ${
                                 isCaptured
-                                  ? "bg-[#1ed760]/15 hover:bg-[#1ed760]/25 border-[#1ed760]/50 text-[#1ed760]"
+                                  ? "bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700"
                                   : isBlocked
-                                  ? "bg-rose-950/50 hover:bg-rose-900/60 border-rose-500/40 text-rose-200"
-                                  : "bg-zinc-900 hover:bg-zinc-800 border-zinc-700 text-zinc-200"
+                                  ? "bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700"
+                                  : "bg-[#f3efff] hover:bg-violet-100 border-[#e2d6fe] text-[#6d28d9]"
                               }`}
                               title={isBlocked ? "Inspect pre-purchase policy rejection details" : "View Full SHA-256 Chain & Audit"}
                             >
                               {isBlocked ? (
-                                <ShieldAlert className="w-3 h-3 text-rose-400" />
+                                <ShieldAlert className="w-3 h-3 text-rose-600" />
                               ) : (
-                                <Shield className="w-3 h-3 text-[#1ed760]" />
+                                <Shield className="w-3 h-3 text-[#7c3aed]" />
                               )}
                               <span>{isCaptured ? "Receipt" : isBlocked ? "Why Blocked" : "Audit"}</span>
                             </button>
@@ -2022,36 +2067,36 @@ export default function Home() {
           return (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
               {/* LEFT DIV: PROOF OF DELIVERY (POD) IMAGE CAPTURE */}
-              <div className="w-full h-full bg-[#18191e] hover:border-zinc-700/90 rounded-[28px] p-4 border border-[#2a2c34] shadow-[0_20px_50px_rgba(0,0,0,0.55)] flex flex-col transition-colors">
+              <div className="w-full h-full surface-card hover:border-violet-300 rounded-[26px] p-4 flex flex-col transition-all">
                 <div className="flex items-center justify-between gap-2 px-1.5 mb-3.5">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-xl bg-[#f3efff] border border-[#e2d6fe] flex items-center justify-center shrink-0">
                       <VisionLensLogo className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">
-                      <h2 className="text-sm font-bold text-white tracking-tight truncate">
+                      <h2 className="text-sm font-bold text-slate-900 tracking-tight truncate">
                         Proof of Delivery (POD)
                       </h2>
-                      <p className="text-[11px] text-zinc-400 truncate">
+                      <p className="text-[11px] text-slate-500 truncate">
                         AI Validation &amp; Hash Verification
                       </p>
                     </div>
                   </div>
-                  <span className="px-3 py-1 rounded-full bg-[#1ed760]/15 border border-[#1ed760]/30 text-[10px] font-mono font-bold text-[#1ed760] shrink-0">
+                  <span className="px-3 py-1 rounded-full bg-violet-50 border border-violet-200 text-[10px] font-mono font-bold text-[#6d28d9] shrink-0">
                     Vision POD
                   </span>
                 </div>
 
-                <div className="bg-[#0a0b0e] rounded-3xl p-4 sm:p-5 shadow-inner border border-white/[0.06] flex-1 flex flex-col justify-between gap-4">
+                <div className="bg-[#faf9ff] rounded-3xl p-4 sm:p-5 border border-[#ede9fe] flex-1 flex flex-col justify-between gap-4">
                   <div className="space-y-4">
                     <div className="relative">
                       <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <label className="text-[11px] font-medium text-zinc-400">
+                        <label className="text-[11px] font-medium text-slate-600">
                           Target Escrow Order
                         </label>
                         <span
-                          className={`text-[10px] font-mono ${
-                            photoTxId ? "text-[#1ed760]" : "text-zinc-500"
+                          className={`text-[10px] font-mono font-semibold ${
+                            photoTxId ? "text-emerald-700" : "text-slate-400"
                           }`}
                         >
                           {photoTxId ? `Bound: ${photoTxId}` : "Manual Inspection (Sandbox Mode)"}
@@ -2059,7 +2104,7 @@ export default function Home() {
                       </div>
 
                       <div className="relative">
-                        <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                         <input
                           type="text"
                           value={photoTxQuery}
@@ -2083,7 +2128,7 @@ export default function Home() {
                             setPhotoTxId(exact ? exact.id : "");
                           }}
                           placeholder="Type TX ID (e.g. TX-8819A20), PayPal ID, or item..."
-                          className="w-full bg-[#121318] border border-zinc-800 focus:border-[#1ed760] rounded-xl pl-8 pr-8 py-2.5 text-xs text-white font-mono placeholder-zinc-500 outline-none transition-colors"
+                          className="w-full bg-white border border-[#e5e0fa] focus:border-[#7c3aed] rounded-xl pl-8 pr-8 py-2.5 text-xs text-slate-900 font-mono placeholder-slate-400 outline-none transition-colors shadow-xs"
                         />
                         {(photoTxQuery || photoTxId) && (
                           <button
@@ -2094,7 +2139,7 @@ export default function Home() {
                               setTxSuggestionsOpen(false);
                             }}
                             title="Reset to Manual Inspection (Sandbox Mode)"
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white p-0.5 rounded"
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5 rounded"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -2116,7 +2161,7 @@ export default function Home() {
                             .slice(0, 8);
 
                           return (
-                            <div className="absolute left-0 right-0 top-full mt-1.5 z-30 rounded-2xl bg-[#121318] border border-zinc-700/90 shadow-2xl overflow-hidden max-h-56 overflow-y-auto">
+                            <div className="absolute left-0 right-0 top-full mt-1.5 z-30 rounded-2xl bg-white border border-[#e5e0fa] shadow-xl overflow-hidden max-h-56 overflow-y-auto">
                               <button
                                 type="button"
                                 onMouseDown={(e) => {
@@ -2125,16 +2170,16 @@ export default function Home() {
                                   setPhotoTxQuery("");
                                   setTxSuggestionsOpen(false);
                                 }}
-                                className={`w-full text-left px-3 py-2 text-[11px] font-mono border-b border-zinc-800/80 flex items-center justify-between hover:bg-zinc-900 ${
-                                  !photoTxId ? "bg-zinc-900/80 text-white font-semibold" : "text-zinc-300"
+                                className={`w-full text-left px-3 py-2 text-[11px] font-mono border-b border-slate-100 flex items-center justify-between hover:bg-[#f7f5fe] ${
+                                  !photoTxId ? "bg-[#f3efff] text-[#6d28d9] font-semibold" : "text-slate-600"
                                 }`}
                               >
                                 <span>Manual Inspection (Sandbox Mode)</span>
-                                <span className="text-[10px] text-zinc-500">Unbound</span>
+                                <span className="text-[10px] text-slate-400">Unbound</span>
                               </button>
 
                               {matches.length === 0 ? (
-                                <div className="px-3 py-2.5 text-[11px] text-zinc-500 font-mono">
+                                <div className="px-3 py-2.5 text-[11px] text-slate-400 font-mono">
                                   No order matches &quot;{photoTxQuery}&quot;
                                 </div>
                               ) : (
@@ -2148,20 +2193,20 @@ export default function Home() {
                                       setPhotoTxQuery(t.id);
                                       setTxSuggestionsOpen(false);
                                     }}
-                                    className={`w-full text-left px-3 py-2 border-b border-zinc-800/50 last:border-b-0 hover:bg-zinc-900 flex items-center justify-between gap-2 ${
-                                      photoTxId === t.id ? "bg-[#1ed760]/10" : ""
+                                    className={`w-full text-left px-3 py-2 border-b border-slate-100 last:border-b-0 hover:bg-[#f7f5fe] flex items-center justify-between gap-2 ${
+                                      photoTxId === t.id ? "bg-violet-50" : ""
                                     }`}
                                   >
                                     <div className="min-w-0">
                                       <div className="flex items-center gap-2 text-[11px] font-mono">
-                                        <span className="font-bold text-[#1ed760]">{t.id}</span>
-                                        <span className="text-zinc-500 truncate">
+                                        <span className="font-bold text-[#6d28d9]">{t.id}</span>
+                                        <span className="text-slate-400 truncate">
                                           {t.paypal_order_id ? `PP:${t.paypal_order_id}` : t.tracking_number || ""}
                                         </span>
                                       </div>
-                                      <p className="text-[11px] text-zinc-200 truncate">{t.item_name}</p>
+                                      <p className="text-[11px] text-slate-800 font-medium truncate">{t.item_name}</p>
                                     </div>
-                                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 shrink-0">
+                                    <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-600 shrink-0">
                                       {t.status}
                                     </span>
                                   </button>
@@ -2178,24 +2223,24 @@ export default function Home() {
                         );
                         if (boundTx) {
                           return (
-                            <div className="mt-2 rounded-xl bg-[#121318] border border-zinc-800/80 px-3 py-2 text-[10px] font-mono space-y-0.5">
+                            <div className="mt-2 rounded-xl bg-white border border-[#ebe6fa] px-3 py-2 text-[10px] font-mono space-y-0.5">
                               <div className="flex items-center justify-between gap-2">
-                                <span className="text-zinc-400">
-                                  Order: <strong className="text-[#1ed760]">{boundTx.id}</strong>
+                                <span className="text-slate-500">
+                                  Order: <strong className="text-[#6d28d9]">{boundTx.id}</strong>
                                 </span>
-                                <span className="text-zinc-500 truncate">
+                                <span className="text-slate-400 truncate">
                                   Track: {boundTx.tracking_number || "Pending"}
                                 </span>
                               </div>
-                              <div className="text-zinc-300 truncate">
-                                Item: <span className="text-white font-semibold">{boundTx.item_name}</span>
+                              <div className="text-slate-600 truncate">
+                                Item: <span className="text-slate-900 font-semibold">{boundTx.item_name}</span>
                               </div>
                             </div>
                           );
                         }
                         if (photoTxQuery.trim()) {
                           return (
-                            <p className="mt-1.5 text-[10px] font-mono text-amber-300">
+                            <p className="mt-1.5 text-[10px] font-mono text-amber-700">
                               Select a matching order above or enter the full TX ID to bind escrow.
                             </p>
                           );
@@ -2204,8 +2249,8 @@ export default function Home() {
                       })()}
                     </div>
 
-                    <label className="group relative flex flex-col items-center justify-center gap-2.5 border border-dashed border-zinc-700/80 hover:border-[#1ed760]/70 rounded-2xl bg-[#111217] h-44 cursor-pointer overflow-hidden transition-all p-3">
-                      <div className="pointer-events-none absolute -top-10 h-24 w-44 rounded-full bg-[#1ed760]/5 blur-2xl group-hover:bg-[#1ed760]/15 transition-colors" />
+                    <label className="group relative flex flex-col items-center justify-center gap-2.5 border-2 border-dashed border-[#d8cffc] hover:border-[#7c3aed] rounded-2xl bg-white h-44 cursor-pointer overflow-hidden transition-all p-3">
+                      <div className="pointer-events-none absolute -top-10 h-24 w-44 rounded-full bg-violet-500/5 blur-2xl group-hover:bg-violet-500/15 transition-colors" />
                       {photoPreviewUrl ? (
                         <img
                           src={photoPreviewUrl}
@@ -2214,13 +2259,13 @@ export default function Home() {
                         />
                       ) : (
                         <>
-                          <div className="relative z-10 w-10 h-10 rounded-2xl bg-zinc-900 border border-zinc-800 group-hover:border-[#1ed760]/50 flex items-center justify-center transition-colors shadow-inner">
-                            <Upload className="w-4 h-4 text-zinc-400 group-hover:text-[#1ed760]" />
+                          <div className="relative z-10 w-10 h-10 rounded-2xl bg-[#f3efff] border border-[#e2d6fe] group-hover:border-[#7c3aed] flex items-center justify-center transition-colors">
+                            <Upload className="w-4 h-4 text-[#6d28d9]" />
                           </div>
-                          <span className="relative z-10 text-xs font-semibold text-zinc-200">
+                          <span className="relative z-10 text-xs font-semibold text-slate-800">
                             Select delivery photo
                           </span>
-                          <span className="relative z-10 text-[10px] font-mono text-zinc-500">
+                          <span className="relative z-10 text-[10px] font-mono text-slate-400">
                             JPG, PNG, or WEBP
                           </span>
                         </>
@@ -2234,13 +2279,13 @@ export default function Home() {
                     </label>
                   </div>
 
-                  <div className="pt-3 border-t border-zinc-800/80 flex flex-wrap items-center justify-between gap-2">
-                    <div className="min-w-0 text-[11px] text-zinc-400 truncate">
+                  <div className="pt-3 border-t border-[#ebe6fa] flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0 text-[11px] text-slate-500 truncate">
                       {isAlreadySettled ? (
                         <span className={`font-mono font-semibold inline-flex items-center gap-1.5 ${
                           isSettledProtected || boundTx?.status === "VOIDED" || boundTx?.status === "DISPUTED"
-                            ? "text-rose-300"
-                            : "text-[#1ed760]"
+                            ? "text-rose-600"
+                            : "text-emerald-700"
                         }`}>
                           <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                           <span>
@@ -2250,14 +2295,14 @@ export default function Home() {
                           </span>
                         </span>
                       ) : isMismatchRetryPending ? (
-                        <span className="font-mono font-semibold text-amber-300 inline-flex items-center gap-1.5">
+                        <span className="font-mono font-semibold text-amber-700 inline-flex items-center gap-1.5">
                           <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                           <span>
                             Mismatch {mismatchAttempts}/{maxMismatchAttempts} • Hold Intact ({attemptsRemaining} retry left)
                           </span>
                         </span>
                       ) : selectedPhotoFile ? (
-                        <span className="font-mono text-zinc-300">
+                        <span className="font-mono text-slate-700">
                           {selectedPhotoFile.name} ({Math.max(1, Math.round(selectedPhotoFile.size / 1024))} KB)
                         </span>
                       ) : (
@@ -2271,7 +2316,7 @@ export default function Home() {
                           <button
                             type="button"
                             onClick={resetVisionWorkspace}
-                            className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/80 text-[11px] font-semibold text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                            className="px-3 py-1.5 rounded-xl bg-white hover:bg-[#f7f5fe] border border-slate-200 text-[11px] font-semibold text-slate-700 transition-colors cursor-pointer"
                           >
                             Next Order
                           </button>
@@ -2279,7 +2324,7 @@ export default function Home() {
                             <button
                               type="button"
                               onClick={() => openTxInspector(boundTx, "vision")}
-                              className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-[11px] font-semibold text-sky-300 inline-flex items-center gap-1 transition-colors cursor-pointer"
+                              className="px-3 py-1.5 rounded-xl bg-violet-50 hover:bg-violet-100 border border-violet-200 text-[11px] font-semibold text-[#6d28d9] inline-flex items-center gap-1 transition-colors cursor-pointer"
                             >
                               <Eye className="w-3 h-3" />
                               <span>Receipt &amp; POD</span>
@@ -2291,7 +2336,7 @@ export default function Home() {
                               setOrderFilter("all");
                               setActiveTab("orders");
                             }}
-                            className="px-4 py-2 rounded-full bg-[#1ed760] hover:bg-emerald-300 text-black text-xs font-extrabold inline-flex items-center gap-1.5 shadow-[0_0_20px_rgba(30,215,96,0.28)] transition-all cursor-pointer"
+                            className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#6366f1] hover:from-[#8b5cf6] hover:to-[#6366f1] text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-[0_6px_16px_rgba(109,40,217,0.26)] transition-all cursor-pointer"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             <span>Open Orders</span>
@@ -2304,7 +2349,7 @@ export default function Home() {
                               type="button"
                               onClick={() => handlePhotoFileSelected(null)}
                               disabled={loading}
-                              className="px-2.5 py-1.5 rounded-xl bg-transparent hover:bg-zinc-900/70 border border-zinc-800/80 text-[11px] font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
+                              className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-[11px] font-medium text-slate-600 transition-colors"
                             >
                               Clear
                             </button>
@@ -2312,10 +2357,10 @@ export default function Home() {
                           <button
                             onClick={() => handleInspectRealPhoto()}
                             disabled={loading || !selectedPhotoFile}
-                            className={`px-4 py-2 rounded-full disabled:opacity-45 text-black text-xs font-extrabold inline-flex items-center gap-1.5 transition-all cursor-pointer ${
+                            className={`px-4 py-2 rounded-xl disabled:opacity-45 text-white text-xs font-bold inline-flex items-center gap-1.5 transition-all cursor-pointer ${
                               isMismatchRetryPending
-                                ? "bg-amber-400 hover:bg-amber-300 shadow-[0_0_20px_rgba(251,191,36,0.28)]"
-                                : "bg-[#1ed760] hover:bg-emerald-300 shadow-[0_0_20px_rgba(30,215,96,0.28)]"
+                                ? "bg-amber-500 hover:bg-amber-400 shadow-sm"
+                                : "bg-gradient-to-r from-[#7c3aed] to-[#6366f1] hover:from-[#8b5cf6] hover:to-[#6366f1] shadow-[0_6px_16px_rgba(109,40,217,0.28)]"
                             }`}
                           >
                             {isInspecting ? (
@@ -2343,44 +2388,44 @@ export default function Home() {
               </div>
 
               {/* RIGHT DIV: AUDIT TRAIL & ESCROW VERIFICATION */}
-              <div className="w-full h-full bg-[#18191e] hover:border-zinc-700/90 rounded-[28px] p-4 border border-[#2a2c34] shadow-[0_20px_50px_rgba(0,0,0,0.55)] flex flex-col transition-colors">
+              <div className="w-full h-full surface-card hover:border-violet-300 rounded-[26px] p-4 flex flex-col transition-all">
                 <div className="flex items-center justify-between gap-2 px-1.5 mb-3.5">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-xl bg-[#f3efff] border border-[#e2d6fe] flex items-center justify-center shrink-0">
                       <AuroraShieldLogo className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">
-                      <h2 className="text-sm font-bold text-white tracking-tight truncate">
+                      <h2 className="text-sm font-bold text-slate-900 tracking-tight truncate">
                         Audit Trail &amp; Escrow
                       </h2>
-                      <p className="text-[11px] text-zinc-400 truncate">
+                      <p className="text-[11px] text-slate-500 truncate">
                         Real-time cryptographic and visual verification
                       </p>
                     </div>
                   </div>
                   <span
-                    className={`px-3 py-1 rounded-full text-[10px] font-mono font-black tracking-tight shrink-0 ${
+                    className={`px-3 py-1 rounded-full text-[10px] font-mono font-bold tracking-tight shrink-0 ${
                       isInspecting
-                        ? "bg-sky-500/20 text-sky-300 border border-sky-500/40"
+                        ? "bg-violet-50 text-[#6d28d9] border border-violet-200"
                         : chainPassed
-                        ? "bg-[#1ed760] text-black shadow-[0_0_16px_rgba(30,215,96,0.35)]"
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                         : isMismatchRetryPending
-                        ? "bg-amber-400 text-black shadow-[0_0_16px_rgba(251,191,36,0.35)]"
+                        ? "bg-amber-50 text-amber-700 border border-amber-200"
                         : chainFailed
-                        ? "bg-rose-500 text-white shadow-[0_0_16px_rgba(244,63,94,0.35)]"
-                        : "bg-zinc-900 text-zinc-400 border border-zinc-800"
+                        ? "bg-rose-50 text-rose-700 border border-rose-200"
+                        : "bg-[#f5f3ff] text-slate-500 border border-[#e5e0fa]"
                     }`}
                   >
                     {ins?.model ? ins.model : isInspecting ? "SCANNING" : chainPassed ? "VERIFIED" : isMismatchRetryPending ? `RETRY ${mismatchAttempts}/${maxMismatchAttempts}` : chainFailed ? "FLAGGED" : "STANDBY"}
                   </span>
                 </div>
 
-                <div className="bg-[#0a0b0e] rounded-3xl p-4 sm:p-5 shadow-inner border border-white/[0.06] flex-1 flex flex-col justify-between gap-4">
+                <div className="bg-[#faf9ff] rounded-3xl p-4 sm:p-5 border border-[#ede9fe] flex-1 flex flex-col justify-between gap-4">
                   {/* LIVE MULTI-API CALL PIPELINE BAR */}
                   <div className="grid grid-cols-4 gap-2">
                     {[
                       { step: 1, label: "SHA-256 Hash", sub: "Evidence" },
-                      { step: 2, label: "Gemini Vision", sub: "POD Scan" },
+                      { step: 2, label: "AI Vision", sub: "POD Scan" },
                       { step: 3, label: "Ledger Chain", sub: "Guardrails" },
                       { step: 4, label: "PayPal API", sub: isMismatchRetryPending ? "Hold Kept" : chainFailed ? "Void" : "Capture" },
                     ].map((s) => {
@@ -2391,42 +2436,42 @@ export default function Home() {
                           key={s.step}
                           className={`rounded-xl border px-2.5 py-2 transition-all ${
                             isActive
-                              ? "bg-sky-500/15 border-sky-400/60 shadow-[0_0_16px_rgba(56,189,248,0.2)]"
+                              ? "bg-violet-50 border-violet-300 shadow-xs"
                               : isDone
                               ? isMismatchRetryPending && s.step === 4
-                                ? "bg-amber-500/10 border-amber-500/45"
+                                ? "bg-amber-50 border-amber-200"
                                 : chainFailed && s.step === 4
-                                ? "bg-rose-500/10 border-rose-500/40"
-                                : "bg-[#0d2217] border-[#1ed760]/40"
-                              : "bg-[#121318] border-zinc-800/70 opacity-65"
+                                ? "bg-rose-50 border-rose-200"
+                                : "bg-emerald-50 border-emerald-200"
+                              : "bg-white border-[#ebe6fa] opacity-80"
                           }`}
                         >
                           <div className="flex items-center justify-between gap-1 mb-0.5">
-                            <span className="text-[9px] font-mono text-zinc-500">0{s.step}</span>
+                            <span className="text-[9px] font-mono text-slate-400">0{s.step}</span>
                             {isActive ? (
-                              <Loader2 className="w-3 h-3 text-sky-400 animate-spin" />
+                              <Loader2 className="w-3 h-3 text-[#6d28d9] animate-spin" />
                             ) : isDone ? (
                               isMismatchRetryPending && s.step === 4 ? (
-                                <Lock className="w-3 h-3 text-amber-400" />
+                                <Lock className="w-3 h-3 text-amber-600" />
                               ) : (
                                 <CheckCircle2
                                   className={`w-3 h-3 ${
-                                    chainFailed && s.step === 4 ? "text-rose-400" : "text-[#1ed760]"
+                                    chainFailed && s.step === 4 ? "text-rose-600" : "text-emerald-600"
                                   }`}
                                 />
                               )
                             ) : (
-                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
                             )}
                           </div>
                           <p
                             className={`text-[10px] font-bold truncate ${
-                              isActive ? "text-sky-200" : isDone ? "text-white" : "text-zinc-400"
+                              isActive ? "text-[#6d28d9]" : isDone ? "text-slate-900" : "text-slate-500"
                             }`}
                           >
                             {s.label}
                           </p>
-                          <p className="text-[9px] font-mono text-zinc-500 truncate">{s.sub}</p>
+                          <p className="text-[9px] font-mono text-slate-400 truncate">{s.sub}</p>
                         </div>
                       );
                     })}
@@ -2438,31 +2483,31 @@ export default function Home() {
                     <div
                       className={`rounded-2xl border p-3.5 space-y-2 transition-colors ${
                         isInspecting
-                          ? "bg-sky-950/30 border-sky-500/40"
+                          ? "bg-violet-50 border-violet-200"
                           : chainPassed
-                          ? "bg-emerald-950/35 border-emerald-500/50"
+                          ? "bg-emerald-50 border-emerald-200"
                           : isMismatchRetryPending
-                          ? "bg-amber-950/30 border-amber-500/50"
+                          ? "bg-amber-50 border-amber-200"
                           : chainFailed
-                          ? "bg-rose-950/35 border-rose-500/50"
-                          : "bg-[#121318] border-zinc-800/80"
+                          ? "bg-rose-50 border-rose-200"
+                          : "bg-white border-[#ebe6fa]"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500">
                           Cryptographic Ledger Check
                         </span>
                         <span
                           className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
                             isInspecting
-                              ? "bg-sky-500/20 text-sky-300"
+                              ? "bg-violet-100 text-[#6d28d9]"
                               : chainPassed
-                              ? "bg-[#1ed760]/20 text-[#1ed760]"
+                              ? "bg-emerald-100 text-emerald-700"
                               : isMismatchRetryPending
-                              ? "bg-amber-500/20 text-amber-300"
+                              ? "bg-amber-100 text-amber-800"
                               : chainFailed
-                              ? "bg-rose-500/20 text-rose-300"
-                              : "bg-zinc-800 text-zinc-400"
+                              ? "bg-rose-100 text-rose-700"
+                              : "bg-slate-100 text-slate-500"
                           }`}
                         >
                           {isInspecting
@@ -2479,26 +2524,26 @@ export default function Home() {
 
                       <div className="flex items-start gap-2">
                         {isInspecting ? (
-                          <Loader2 className="w-4 h-4 text-sky-400 animate-spin shrink-0 mt-0.5" />
+                          <Loader2 className="w-4 h-4 text-[#6d28d9] animate-spin shrink-0 mt-0.5" />
                         ) : chainPassed ? (
-                          <CheckCircle2 className="w-4 h-4 text-[#1ed760] shrink-0 mt-0.5" />
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                         ) : isMismatchRetryPending ? (
-                          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                         ) : chainFailed ? (
-                          <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                          <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                         ) : (
-                          <Lock className="w-4 h-4 text-zinc-500 shrink-0 mt-0.5" />
+                          <Lock className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
                         )}
                         <div className="min-w-0 space-y-0.5">
                           <p
                             className={`text-xs font-semibold truncate ${
                               chainPassed
-                                ? "text-emerald-200"
+                                ? "text-emerald-900"
                                 : isMismatchRetryPending
-                                ? "text-amber-200"
+                                ? "text-amber-900"
                                 : chainFailed
-                                ? "text-rose-200"
-                                : "text-zinc-200"
+                                ? "text-rose-900"
+                                : "text-slate-800"
                             }`}
                           >
                             {isInspecting
@@ -2513,7 +2558,7 @@ export default function Home() {
                                 }${analysis.verdict}`
                               : "Order No + SHA-256 Chain"}
                           </p>
-                          <p className="text-[11px] font-mono text-zinc-400 truncate">
+                          <p className="text-[11px] font-mono text-slate-500 truncate">
                             {hasResult && analysis?.detected_item
                               ? `Seen: ${analysis.detected_item} • ${
                                   analysis.item_matches_order === false
@@ -2532,31 +2577,31 @@ export default function Home() {
                     <div
                       className={`rounded-2xl border p-3.5 space-y-2 transition-colors ${
                         isInspecting
-                          ? "bg-sky-950/30 border-sky-500/40"
+                          ? "bg-violet-50 border-violet-200"
                           : chainPassed
-                          ? "bg-emerald-950/35 border-emerald-500/50"
+                          ? "bg-emerald-50 border-emerald-200"
                           : isMismatchRetryPending
-                          ? "bg-amber-950/30 border-amber-500/50"
+                          ? "bg-amber-50 border-amber-200"
                           : chainFailed
-                          ? "bg-rose-950/35 border-rose-500/50"
-                          : "bg-[#121318] border-zinc-800/80"
+                          ? "bg-rose-50 border-rose-200"
+                          : "bg-white border-[#ebe6fa]"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500">
                           Escrow Settlement Status
                         </span>
                         <span
                           className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
                             isInspecting
-                              ? "bg-sky-500/20 text-sky-300"
+                              ? "bg-violet-100 text-[#6d28d9]"
                               : chainPassed
-                              ? "bg-[#1ed760]/20 text-[#1ed760]"
+                              ? "bg-emerald-100 text-emerald-700"
                               : isMismatchRetryPending
-                              ? "bg-amber-500/20 text-amber-300"
+                              ? "bg-amber-100 text-amber-800"
                               : chainFailed
-                              ? "bg-rose-500/20 text-rose-300"
-                              : "bg-zinc-800 text-zinc-400"
+                              ? "bg-rose-100 text-rose-700"
+                              : "bg-slate-100 text-slate-500"
                           }`}
                         >
                           {isInspecting
@@ -2580,12 +2625,12 @@ export default function Home() {
                           <p
                             className={`text-xs font-semibold ${
                               chainPassed
-                                ? "text-emerald-200"
+                                ? "text-emerald-900"
                                 : isMismatchRetryPending
-                                ? "text-amber-200"
+                                ? "text-amber-900"
                                 : chainFailed
-                                ? "text-rose-200"
-                                : "text-zinc-200"
+                                ? "text-rose-900"
+                                : "text-slate-800"
                             }`}
                           >
                             {isInspecting
@@ -2602,7 +2647,7 @@ export default function Home() {
                               ? "Escrow Frozen • Auto-Protect"
                               : "Release on Pass / Protect on Fail"}
                           </p>
-                          <p className="text-[11px] text-zinc-400 truncate">
+                          <p className="text-[11px] text-slate-500 truncate">
                             {isSettledCaptured
                               ? `Capture ID: ${visionResult.paypal_capture_id || "Confirmed"}`
                               : visionResult?.auto_settle_error
@@ -2624,7 +2669,7 @@ export default function Home() {
                             type="button"
                             onClick={() => handleCaptureFunds(photoTxId)}
                             disabled={loading}
-                            className="px-2.5 py-1.5 rounded-xl bg-[#1ed760] hover:bg-emerald-300 text-black text-[11px] font-bold shrink-0"
+                            className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold shrink-0"
                           >
                             Capture
                           </button>
@@ -2634,7 +2679,7 @@ export default function Home() {
                             type="button"
                             onClick={() => handleVoidOrDispute(photoTxId || boundTx.id)}
                             disabled={loading}
-                            className="px-2.5 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-400 text-white text-[11px] font-bold shrink-0"
+                            className="px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold shrink-0"
                           >
                             {isMismatchRetryPending ? "Void Hold Now" : "Void Hold"}
                           </button>
@@ -2647,30 +2692,30 @@ export default function Home() {
                   {hasResult ? (
                     <div className="space-y-3 text-xs">
                       <div className="grid grid-cols-3 gap-2.5">
-                        <div className="bg-[#121318] border border-zinc-800/80 rounded-2xl p-3">
-                          <span className="text-[10px] text-zinc-400 block">Integrity</span>
-                          <span className={`text-base font-bold ${chainPassed ? "text-[#1ed760]" : "text-rose-400"}`}>
+                        <div className="bg-white border border-[#ebe6fa] rounded-2xl p-3">
+                          <span className="text-[10px] text-slate-400 block">Integrity</span>
+                          <span className={`text-base font-bold ${chainPassed ? "text-emerald-700" : "text-rose-600"}`}>
                             {(Number(analysis.integrity_score || 0) * 100).toFixed(0)}%
                           </span>
                         </div>
-                        <div className="bg-[#121318] border border-zinc-800/80 rounded-2xl p-3">
-                          <span className="text-[10px] text-zinc-400 block">Deformation</span>
-                          <span className="text-base font-bold text-white">
+                        <div className="bg-white border border-[#ebe6fa] rounded-2xl p-3">
+                          <span className="text-[10px] text-slate-400 block">Deformation</span>
+                          <span className="text-base font-bold text-slate-900">
                             {(Number(analysis.deformation_score || 0) * 100).toFixed(0)}%
                           </span>
                         </div>
-                        <div className="bg-[#121318] border border-zinc-800/80 rounded-2xl p-3">
-                          <span className="text-[10px] text-zinc-400 block">Condition</span>
-                          <span className="text-xs font-mono font-semibold text-zinc-200 truncate block mt-1" title={analysis.condition}>
+                        <div className="bg-white border border-[#ebe6fa] rounded-2xl p-3">
+                          <span className="text-[10px] text-slate-400 block">Condition</span>
+                          <span className="text-xs font-mono font-semibold text-slate-800 truncate block mt-1" title={analysis.condition}>
                             {analysis.condition}
                           </span>
                         </div>
                       </div>
 
                       {Array.isArray(analysis.vision_reasoning) && (
-                        <div className="bg-[#121318] border border-zinc-800/80 rounded-2xl p-3.5 space-y-1">
-                          <span className="text-[11px] text-zinc-400 font-medium block">Gemini Forensic Observations</span>
-                          <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-zinc-200">
+                        <div className="bg-white border border-[#ebe6fa] rounded-2xl p-3.5 space-y-1">
+                          <span className="text-[11px] text-slate-500 font-medium block">AI Forensic Observations</span>
+                          <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-slate-700">
                             {analysis.vision_reasoning.map((r: string, i: number) => (
                               <li key={i}>{r}</li>
                             ))}
@@ -2679,13 +2724,13 @@ export default function Home() {
                       )}
                     </div>
                   ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-800/90 bg-[#121318]/70 px-5 py-7 text-center">
-                      <div className="w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-2.5">
-                        <GeminiLogo className="w-4 h-4" />
+                    <div className="flex-1 flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#d8cffc] bg-white/80 px-5 py-7 text-center">
+                      <div className="w-9 h-9 rounded-full bg-[#f3efff] border border-[#e2d6fe] flex items-center justify-center mb-2.5">
+                        <Sparkles className="w-4 h-4 text-[#7c3aed]" />
                       </div>
-                      <p className="text-xs text-zinc-200 font-semibold tracking-tight">Awaiting visual input...</p>
-                      <p className="text-[11px] text-zinc-500 mt-1 max-w-sm">
-                        Select a Target Escrow Order and drop a parcel photo on the left to trigger cryptographic + Gemini Vision verification.
+                      <p className="text-xs text-slate-800 font-semibold tracking-tight">Awaiting visual input...</p>
+                      <p className="text-[11px] text-slate-500 mt-1 max-w-sm">
+                        Select a Target Escrow Order and drop a parcel photo on the left to trigger cryptographic + AI Vision verification.
                       </p>
                     </div>
                   )}
@@ -2698,68 +2743,68 @@ export default function Home() {
         {/* ==================== TAB 4: MANDATE & SAFEGUARDS (2-COLUMN PC) ==================== */}
         {activeTab === "settings" && (
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-            <div className="md:col-span-6 bg-[#111114] border border-zinc-800/90 rounded-xl p-6 space-y-4">
-              <div className="flex items-center justify-between">
+            <div className="md:col-span-6 surface-card p-6 space-y-4">
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-base font-bold text-white">Corporate Spending Mandate &amp; Wallet</h2>
-                  <p className="text-xs text-zinc-400">Deterministic rules enforced before PayPal order creation</p>
+                  <h2 className="text-base font-bold text-slate-900">Corporate Spending Mandate &amp; Wallet</h2>
+                  <p className="text-xs text-slate-500">Deterministic rules enforced before PayPal order creation</p>
                 </div>
                 <button
                   onClick={() => setIsSetAmountModalOpen(true)}
-                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-white"
+                  className="px-3.5 py-1.5 rounded-xl bg-[#f3efff] hover:bg-[#e9e2ff] border border-[#e2d6fe] text-xs font-semibold text-[#6d28d9] shrink-0"
                 >
                   Edit Pool &amp; Cap
                 </button>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3.5">
-                  <span className="text-zinc-400 block">Escrow Pool Balance</span>
-                  <span className="text-lg font-bold text-white mt-0.5 block">{formatMoney(mandate.remaining_pool)}</span>
+                <div className="surface-card-subtle p-4">
+                  <span className="text-slate-500 block">Escrow Pool Balance</span>
+                  <span className="text-lg font-extrabold text-slate-900 mt-1 block tabular-nums">{formatMoney(mandate.remaining_pool)}</span>
                 </div>
-                <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3.5">
-                  <span className="text-zinc-400 block">Max Single Spend</span>
-                  <span className="text-lg font-bold text-white mt-0.5 block">{formatMoney(mandate.max_single_spend)}</span>
+                <div className="surface-card-subtle p-4">
+                  <span className="text-slate-500 block">Max Single Spend</span>
+                  <span className="text-lg font-extrabold text-slate-900 mt-1 block tabular-nums">{formatMoney(mandate.max_single_spend)}</span>
                 </div>
               </div>
 
-              <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3.5 text-xs space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">Allowed Categories</span>
-                  <span className="font-mono text-white">{mandate.allowed_categories}</span>
+              <div className="surface-card-subtle p-4 text-xs space-y-2.5">
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500">Allowed Categories</span>
+                  <span className="font-mono font-semibold text-slate-800">{mandate.allowed_categories}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">Circuit Breaker</span>
-                  <span className={killSwitchStatus.is_locked_down ? "text-rose-400 font-bold" : "text-emerald-400 font-medium"}>
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500">Circuit Breaker</span>
+                  <span className={killSwitchStatus.is_locked_down ? "text-rose-600 font-bold" : "text-emerald-700 font-bold"}>
                     {killSwitchStatus.is_locked_down ? "LOCKED DOWN" : "ARMED & HEALTHY"}
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="md:col-span-6 bg-[#111114] border border-zinc-800/90 rounded-xl p-6 space-y-4">
-              <div className="flex items-center justify-between">
+            <div className="md:col-span-6 surface-card p-6 space-y-4">
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-base font-bold text-white">Dual-Agent Maker-Checker &amp; PayPal Profile</h2>
-                  <p className="text-xs text-zinc-400">Air-gapped auditor signing and delegated PayPal buyer account</p>
+                  <h2 className="text-base font-bold text-slate-900">Dual-Agent Maker-Checker &amp; PayPal Profile</h2>
+                  <p className="text-xs text-slate-500">Air-gapped auditor signing and delegated PayPal buyer account</p>
                 </div>
                 <button
                   onClick={() => setIsAuthModalOpen(true)}
-                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-sky-300 inline-flex items-center gap-1.5"
+                  className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-[#f8f7fc] border border-slate-200 hover:border-violet-200 text-xs font-semibold text-slate-700 inline-flex items-center gap-1.5 shadow-xs shrink-0"
                 >
-                  <CreditCard className="w-3.5 h-3.5" />
+                  <CreditCard className="w-3.5 h-3.5 text-[#6d28d9]" />
                   <span>PayPal Profile</span>
                 </button>
               </div>
 
-              <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3.5 text-xs space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">Connected Buyer</span>
-                  <span className="font-mono text-white">{connectedAccount?.email || "Not Linked"}</span>
+              <div className="surface-card-subtle p-4 text-xs space-y-2.5">
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500">Connected Buyer</span>
+                  <span className="font-mono font-semibold text-slate-900">{connectedAccount?.email || "Not Linked"}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">Payer ID</span>
-                  <span className="font-mono text-zinc-300">{connectedAccount?.payer_id || "—"}</span>
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-500">Payer ID</span>
+                  <span className="font-mono text-slate-500">{connectedAccount?.payer_id || "—"}</span>
                 </div>
               </div>
 
@@ -2796,7 +2841,7 @@ export default function Home() {
                     setBusyAction(null);
                   }
                 }}
-                className="w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-black text-xs font-semibold flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#6366f1] hover:from-[#8b5cf6] hover:to-[#6366f1] disabled:opacity-60 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(109,40,217,0.3)]"
               >
                 {busyAction === "maker-checker" ? (
                   <>
@@ -2809,10 +2854,10 @@ export default function Home() {
               </button>
 
               {makerCheckerRes && (
-                <div className="bg-zinc-950 border border-emerald-500/30 rounded-lg p-3 text-xs font-mono text-emerald-300 space-y-1">
-                  <div>Status: {makerCheckerRes.status}</div>
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs font-mono text-emerald-800 space-y-1">
+                  <div className="font-semibold">Status: {makerCheckerRes.status}</div>
                   {makerCheckerRes.audit?.cryptographic_signature && (
-                    <div className="truncate text-zinc-400">HMAC: {makerCheckerRes.audit.cryptographic_signature}</div>
+                    <div className="truncate text-emerald-700">HMAC: {makerCheckerRes.audit.cryptographic_signature}</div>
                   )}
                 </div>
               )}
@@ -2823,38 +2868,38 @@ export default function Home() {
 
       {/* CHECKOUT CONFIRMATION MODAL */}
       {checkoutProduct && (
-        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4 overscroll-contain">
-          <div className="bg-[#111114] border border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-5">
+        <div className="fixed inset-0 z-[60] bg-slate-950/45 backdrop-blur-sm flex items-center justify-center p-4 overscroll-contain">
+          <div className="bg-white border border-[#e5e0fa] rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-base font-bold text-white">Confirm PayPal Smart Escrow</h3>
-                <p className="text-xs text-zinc-400 mt-0.5">{checkoutProduct.merchant}</p>
+                <h3 className="text-base font-bold text-slate-900">Confirm PayPal Smart Escrow</h3>
+                <p className="text-xs text-slate-500 mt-0.5">{checkoutProduct.merchant}</p>
               </div>
-              <button onClick={() => setCheckoutProduct(null)} className="text-zinc-400 hover:text-white">
+              <button onClick={() => setCheckoutProduct(null)} className="text-slate-400 hover:text-slate-700">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-2 text-xs">
-              <div className="font-semibold text-sm text-white">{checkoutProduct.name}</div>
-              <div className="text-zinc-400">{checkoutProduct.description}</div>
-              <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
-                <span className="text-zinc-400">Escrow Hold Amount</span>
-                <span className="text-base font-bold text-white">{formatMoney(checkoutProduct.amount)}</span>
+            <div className="bg-[#f8f7fc] border border-[#ebe6fa] rounded-xl p-4 space-y-2 text-xs">
+              <div className="font-bold text-sm text-slate-900">{checkoutProduct.name}</div>
+              <div className="text-slate-600">{checkoutProduct.description}</div>
+              <div className="pt-2 border-t border-[#ebe6fa] flex items-center justify-between">
+                <span className="text-slate-500">Escrow Hold Amount</span>
+                <span className="text-base font-extrabold text-slate-900">{formatMoney(checkoutProduct.amount)}</span>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setCheckoutProduct(null)}
-                className="flex-1 py-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-200"
+                className="flex-1 py-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleBuyItem(checkoutProduct)}
                 disabled={loading}
-                className="flex-1 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-xs font-semibold text-black flex items-center justify-center gap-1.5"
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#6366f1] hover:from-[#8b5cf6] hover:to-[#6366f1] disabled:opacity-60 text-xs font-semibold text-white flex items-center justify-center gap-1.5 shadow-[0_6px_16px_rgba(109,40,217,0.25)]"
               >
                 {busyAction === `buy:${checkoutProduct.id}` ? (
                   <>
@@ -2876,30 +2921,30 @@ export default function Home() {
       {/* FLOATING VIEWPORT STATUS TOAST (VISIBLE WHILE SCROLLED ANYWHERE) */}
       {notice && (
         <div
-          className={`fixed bottom-5 right-5 z-[60] max-w-sm w-full rounded-xl border px-4 py-3 shadow-2xl backdrop-blur flex items-start justify-between gap-3 text-xs transition-all ${
+          className={`fixed bottom-5 right-5 z-[60] max-w-sm w-full rounded-2xl border px-4 py-3 shadow-xl backdrop-blur flex items-start justify-between gap-3 text-xs transition-all ${
             notice.status === "SUCCESS" || notice.status === "CAPTURED"
-              ? "bg-emerald-950/90 border-emerald-500/50 text-emerald-100"
+              ? "bg-white/95 border-emerald-200 text-emerald-950"
               : notice.status === "BLOCKED" || notice.status === "ERROR" || notice.status === "DISPUTED"
-              ? "bg-rose-950/90 border-rose-500/50 text-rose-100"
+              ? "bg-white/95 border-rose-200 text-rose-950"
               : notice.status === "LOADING"
-              ? "bg-[#111114]/95 border-sky-500/50 text-sky-100"
-              : "bg-[#111114]/95 border-zinc-700 text-zinc-100"
+              ? "bg-white/95 border-violet-200 text-violet-950"
+              : "bg-white/95 border-[#ece8f8] text-slate-900"
           }`}
         >
           <div className="flex items-start gap-2.5 min-w-0">
             {notice.status === "LOADING" ? (
-              <Loader2 className="w-4 h-4 text-emerald-400 animate-spin shrink-0 mt-0.5" />
+              <Loader2 className="w-4 h-4 text-violet-600 animate-spin shrink-0 mt-0.5" />
             ) : notice.status === "SUCCESS" || notice.status === "CAPTURED" ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             ) : (
-              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
             )}
             <div className="space-y-0.5 min-w-0">
               <p className="font-semibold text-xs truncate">{notice.title || notice.status}</p>
-              <p className="text-[11px] text-zinc-300 leading-relaxed line-clamp-3">{notice.message}</p>
+              <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-3">{notice.message}</p>
             </div>
           </div>
-          <button onClick={() => setNotice(null)} className="text-zinc-400 hover:text-white p-0.5 shrink-0">
+          <button onClick={() => setNotice(null)} className="text-slate-400 hover:text-slate-700 p-0.5 shrink-0">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
