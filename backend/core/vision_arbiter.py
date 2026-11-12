@@ -24,20 +24,27 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
 logger = logging.getLogger("aurorapay.vision")
 
 PREFERRED_GEMINI_MODELS = (
+    "gemini-3.5-flash-lite",
+    "gemini-3.5-flash",
     "gemini-3.1-flash-lite-preview",
     "gemini-3-flash-preview",
+    "gemini-flash-lite-latest",
+    "gemini-3.1-flash-lite",
     "gemini-3.8-flash",
     "gemini-flash-latest",
-    "gemini-2.5-flash",
 )
 
 def _is_retryable_model_error(err: Exception) -> bool:
     """Returns True when a Gemini error warrants failing over to the next model."""
     err_str = str(err).lower()
+    if "api key not valid" in err_str or "api_key_invalid" in err_str:
+        return False
     return any(
         token in err_str
         for token in (
             "not found",
+            "no longer available",
+            "deprecated",
             "404",
             "not supported",
             "500",
@@ -52,6 +59,7 @@ def _is_retryable_model_error(err: Exception) -> bool:
             "overloaded",
             "429",
             "resource_exhausted",
+            "quota",
             "timeout",
             "timed out",
             "disconnected",
@@ -195,7 +203,7 @@ class GeminiVisionArbiter:
             if types is not None and hasattr(types, "HttpOptions"):
                 self._genai_client = genai.Client(
                     api_key=key,
-                    http_options=types.HttpOptions(timeout=35000),
+                    http_options=types.HttpOptions(timeout=18000),
                 )
             else:
                 self._genai_client = genai.Client(api_key=key)
@@ -204,7 +212,7 @@ class GeminiVisionArbiter:
             try:
                 import google.generativeai as legacy_genai
                 legacy_genai.configure(api_key=key)
-                self._legacy_model = legacy_genai.GenerativeModel("gemini-2.0-flash")
+                self._legacy_model = legacy_genai.GenerativeModel("gemini-3.5-flash-lite")
             except Exception as e2:
                 logger.warning(f"Could not load legacy Gemini client ({e2}).")
 
@@ -259,7 +267,7 @@ class GeminiVisionArbiter:
         from PIL import Image
         pil_img = Image.open(io.BytesIO(img_bytes))
         response = self._legacy_model.generate_content([prompt, pil_img])
-        return response.text, "gemini-2.0-flash"
+        return response.text, "gemini-3.5-flash-lite"
 
     def inspect_real_photo(
         self,
@@ -466,7 +474,7 @@ class GeminiVisionArbiter:
 
         response = self._legacy_model.generate_content(system_prompt)
         parsed = json.loads(clean_json_string(response.text))
-        return _normalize_agent_payload(parsed, "gemini-3.1-flash-lite-preview")
+        return _normalize_agent_payload(parsed, "gemini-3.5-flash-lite")
 
     def inspect_delivery_proof(
         self,
