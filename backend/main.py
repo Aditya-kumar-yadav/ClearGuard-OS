@@ -3617,6 +3617,22 @@ async def configure_runtime_keys(payload: Dict[str, Any]):
     }
 
 
+MAX_VISION_MISMATCH_ATTEMPTS = 3
+
+
+def _is_vision_item_mismatch(analysis: Dict[str, Any]) -> bool:
+    """Distinguish item/parcel mismatches (eligible for grace retries) from confirmed parcel damage."""
+    if analysis.get("recommended_action") == "CAPTURE_ESCROW":
+        return False
+    verdict = str(analysis.get("verdict") or "").strip().upper()
+    order_match_status = str(analysis.get("order_no_match_status") or "").strip().upper()
+    return (
+        analysis.get("item_matches_order") is False
+        or order_match_status == "MISMATCHED"
+        or verdict in ("ITEM_MISMATCH_SUSPECTED_FRAUD", "ADDRESS_MISMATCH_SUSPECTED_FRAUD", "UNVERIFIED_NON_PARCEL")
+    )
+
+
 @app.post("/api/vision/inspect-photo")
 async def vision_inspect_real_photo(request: Request):
     """
@@ -3774,6 +3790,10 @@ async def vision_inspect_real_photo(request: Request):
     inspection["ocr_extracted"] = ocr_info
     inspection["vision_reasoning"] = analysis.get("vision_reasoning") or []
 
+    is_mismatch = _is_vision_item_mismatch(analysis)
+    mismatch_attempts = int((matching_tx or {}).get("vision_mismatch_attempts") or 0)
+    grace_hold_active = False
+
     if matching_tx is not None:
         resolved_tx_id = matching_tx["id"]
         async with LEDGER_LOCK:
@@ -3785,19 +3805,45 @@ async def vision_inspect_real_photo(request: Request):
                 matching_tx["vision_evidence_mime"] = inspection.get("photo_mime_type") or mime_type
             matching_tx["vision_inspected_at"] = inspected_at
             matching_tx["vision_approved"] = rec_action == "CAPTURE_ESCROW"
+            matching_tx["max_vision_mismatch_attempts"] = MAX_VISION_MISMATCH_ATTEMPTS
             if matching_tx.get("status") == "AUTHORIZED":
                 if rec_action == "CAPTURE_ESCROW":
-                    if matching_tx.get("delivery_status") in (None, "AWAITING_DELIVERY", DeliveryState.AWAITING_DELIVERY.value):
+                    mismatch_attempts = 0
+                    matching_tx["vision_mismatch_attempts"] = 0
+                    matching_tx["vision_grace_pending"] = False
+                    if matching_tx.get("delivery_status") in (
+                        None,
+                        "AWAITING_DELIVERY",
+                        DeliveryState.AWAITING_DELIVERY.value,
+                        "VISION_MISMATCH_RETRY_PENDING",
+                    ):
                         matching_tx["delivery_status"] = DeliveryState.DELIVERY_REVIEW_PENDING.value
+                elif is_mismatch:
+                    mismatch_attempts = int(matching_tx.get("vision_mismatch_attempts") or 0) + 1
+                    matching_tx["vision_mismatch_attempts"] = mismatch_attempts
+                    if mismatch_attempts < MAX_VISION_MISMATCH_ATTEMPTS:
+                        grace_hold_active = True
+                        matching_tx["vision_grace_pending"] = True
+                        matching_tx["delivery_status"] = "VISION_MISMATCH_RETRY_PENDING"
+                        matching_tx["dispute_reason"] = (
+                            f"Item mismatch (Attempt {mismatch_attempts}/{MAX_VISION_MISMATCH_ATTEMPTS}): "
+                            f"{analysis.get('detected_item') or analysis.get('verdict')} — PayPal Escrow hold kept intact pending retry."
+                        )
+                    else:
+                        grace_hold_active = False
+                        matching_tx["vision_grace_pending"] = False
+                        matching_tx["delivery_status"] = "VISION_ITEM_MISMATCH"
+                        matching_tx["dispute_reason"] = (
+                            f"Gemini Vision Mismatch Limit Reached ({mismatch_attempts}/{MAX_VISION_MISMATCH_ATTEMPTS}): "
+                            f"{analysis.get('verdict')} ({analysis.get('condition')})"
+                        )
                 else:
-                    matching_tx["delivery_status"] = (
-                        "VISION_ITEM_MISMATCH"
-                        if analysis.get("item_matches_order") is False or analysis.get("order_no_match_status") == "MISMATCHED"
-                        else "VISION_DAMAGE_DISPUTED"
-                    )
+                    matching_tx["vision_grace_pending"] = False
+                    matching_tx["delivery_status"] = "VISION_DAMAGE_DISPUTED"
                     matching_tx["dispute_reason"] = f"Gemini Vision Flagged: {analysis.get('verdict')} ({analysis.get('condition')})"
             _persist_ledger_cache()
 
+    attempts_remaining = max(0, MAX_VISION_MISMATCH_ATTEMPTS - mismatch_attempts) if is_mismatch else 0
     paypal_capture_id: Optional[str] = None
     auto_settled = False
     auto_settle_error: Optional[str] = None
@@ -3820,16 +3866,34 @@ async def vision_inspect_real_photo(request: Request):
                     f"Gemini Vision ({inspection.get('model')}) passed ({analysis.get('verdict')}) "
                     f"→ PayPal Escrow Captured ({paypal_capture_id})."
                 )
+            elif grace_hold_active:
+                final_status = matching_tx.get("status", "AUTHORIZED")
+                final_delivery_status = "VISION_MISMATCH_RETRY_PENDING"
+                auto_settled = False
+                msg = (
+                    f"Item mismatch detected (Attempt {mismatch_attempts}/{MAX_VISION_MISMATCH_ATTEMPTS}). "
+                    f"PayPal Escrow hold kept intact — upload the correct POD photo ({attempts_remaining} attempt{'s' if attempts_remaining != 1 else ''} left) or Void Hold manually."
+                )
             else:
+                void_reason = (
+                    f"3/{MAX_VISION_MISMATCH_ATTEMPTS} vision item mismatch attempts exceeded ({analysis.get('verdict')})"
+                    if is_mismatch
+                    else f"Gemini Vision Flagged: {analysis.get('verdict')} ({analysis.get('condition')})"
+                )
                 void_res = await void_or_dispute_transaction(
                     matching_tx["id"],
-                    payload={"reason": f"Gemini Vision Flagged: {analysis.get('verdict')} ({analysis.get('condition')})"},
+                    payload={"reason": void_reason},
                 )
                 final_status = void_res.get("status", "VOIDED")
                 auto_settled = True
                 msg = (
-                    f"Gemini Vision ({inspection.get('model')}) flagged {analysis.get('condition')} "
+                    f"{MAX_VISION_MISMATCH_ATTEMPTS}/{MAX_VISION_MISMATCH_ATTEMPTS} mismatch attempts failed "
                     f"→ PayPal Escrow {final_status} to protect buyer."
+                    if is_mismatch
+                    else (
+                        f"Gemini Vision ({inspection.get('model')}) flagged {analysis.get('condition')} "
+                        f"→ PayPal Escrow {final_status} to protect buyer."
+                    )
                 )
         except HTTPException as settle_exc:
             detail_obj = settle_exc.detail if isinstance(settle_exc.detail, dict) else {"message": str(settle_exc.detail)}
@@ -3847,6 +3911,11 @@ async def vision_inspect_real_photo(request: Request):
         "paypal_capture_id": paypal_capture_id,
         "auto_settled": auto_settled,
         "auto_settle_error": auto_settle_error,
+        "is_mismatch": is_mismatch,
+        "mismatch_attempts": mismatch_attempts,
+        "max_mismatch_attempts": MAX_VISION_MISMATCH_ATTEMPTS,
+        "attempts_remaining": attempts_remaining,
+        "grace_hold_active": grace_hold_active,
         "message": msg,
     }
 
@@ -3925,6 +3994,8 @@ async def capture_authorized_transaction(
         matching_tx["payment_status"] = "CAPTURED"
         matching_tx["paypal_capture_id"] = cap_res.get("capture_id")
         matching_tx["delivery_status"] = DeliveryState.DELIVERY_VERIFIED.value
+        matching_tx["vision_grace_pending"] = False
+        matching_tx["vision_mismatch_attempts"] = 0
         matching_tx["captured_at"] = datetime.utcnow().isoformat()
         matching_tx["capture_metadata"] = cap_res
         _advance_tx_chain(matching_tx, "CAPTURED")
@@ -3994,6 +4065,7 @@ async def void_or_dispute_transaction(
             matching_tx["status"] = "VOIDED"
             matching_tx["payment_status"] = "VOIDED"
             matching_tx["delivery_status"] = "DISPUTED_AND_VOIDED"
+            matching_tx["vision_grace_pending"] = False
             matching_tx["dispute_reason"] = reason
             matching_tx["void_metadata"] = void_res
             _advance_tx_chain(matching_tx, "VOIDED")

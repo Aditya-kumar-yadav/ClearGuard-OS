@@ -551,6 +551,17 @@ export default function Home() {
         if (isCap) {
           confetti({ particleCount: 110, spread: 80, origin: { y: 0.6 } });
         }
+        const resolvedStatus = data?.status || (isCap ? "CAPTURED" : "VOIDED");
+        setVisionResult((prev: any) =>
+          prev && (prev.transaction_id === txId || prev.auto_matched_order_id === txId)
+            ? {
+                ...prev,
+                status: resolvedStatus,
+                grace_hold_active: false,
+                paypal_capture_id: data?.paypal_capture_id || prev.paypal_capture_id,
+              }
+            : prev
+        );
         setSettlementFlow((prev) =>
           prev
             ? {
@@ -748,10 +759,19 @@ export default function Home() {
             title: `Vision Passed → PayPal Funds Captured (${data?.paypal_capture_id || "Live"})`,
             message: data.message,
           });
+        } else if (data?.grace_hold_active) {
+          setNotice({
+            status: "RETRY_PENDING",
+            title: `Mismatch (${data?.mismatch_attempts}/${data?.max_mismatch_attempts}) — PayPal Hold Kept Intact`,
+            message: data.message,
+          });
         } else if (data?.auto_settled) {
           setNotice({
             status: "DISPUTED",
-            title: `Vision Flagged Damage → PayPal ${data.status}`,
+            title:
+              data?.is_mismatch
+                ? `Mismatch Limit Reached (${data?.mismatch_attempts}/${data?.max_mismatch_attempts}) → PayPal ${data.status}`
+                : `Vision Flagged Damage → PayPal ${data.status}`,
             message: data.message,
           });
         } else {
@@ -1710,11 +1730,14 @@ export default function Home() {
                                       savedVisionAnalysis.recommended_action === "CAPTURE_ESCROW" ||
                                       savedVisionAnalysis.verdict === "VERIFIED_INTACT"
                                         ? "text-[#1ed760]"
+                                        : isAuthorized && tx.delivery_status === "VISION_MISMATCH_RETRY_PENDING"
+                                        ? "text-amber-300"
                                         : "text-rose-400"
                                     }`}
                                   >
-                                    {savedVisionAnalysis.verdict} (
-                                    {(Number(savedVisionAnalysis.integrity_score || 0) * 100).toFixed(0)}%)
+                                    {isAuthorized && tx.delivery_status === "VISION_MISMATCH_RETRY_PENDING"
+                                      ? `MISMATCH (${tx.vision_mismatch_attempts || 1}/${tx.max_vision_mismatch_attempts || 3}) • HOLD KEPT`
+                                      : `${savedVisionAnalysis.verdict} (${(Number(savedVisionAnalysis.integrity_score || 0) * 100).toFixed(0)}%)`}
                                   </span>
                                 ) : hasCapturedPhoto ? (
                                   <span className="font-mono text-sky-300 truncate">Photo ready &rarr; Inspect</span>
@@ -1853,6 +1876,23 @@ export default function Home() {
                           </div>
 
                           <div className="flex items-center gap-1.5">
+                            {isAuthorized && tx.delivery_status === "VISION_MISMATCH_RETRY_PENDING" && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPhotoTxId(tx.id);
+                                  setPhotoTxQuery(tx.id);
+                                  setActiveTab("vision");
+                                }}
+                                disabled={loading}
+                                className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 text-[11px] font-semibold inline-flex items-center gap-1"
+                                title="Re-upload correct POD photo in Vision Dashboard (PayPal hold is still intact)"
+                              >
+                                <Camera className="w-3 h-3" />
+                                <span>Retry POD ({Math.max(0, (tx.max_vision_mismatch_attempts || 3) - (tx.vision_mismatch_attempts || 0))} left)</span>
+                              </button>
+                            )}
+
                             {isAuthorized && (
                               <button
                                 onClick={() => handleCaptureFunds(tx.id)}
@@ -1957,6 +1997,22 @@ export default function Home() {
             boundTx?.status === "CAPTURED" ||
             boundTx?.status === "VOIDED" ||
             boundTx?.status === "DISPUTED";
+          const mismatchAttempts = Number(
+            visionResult?.mismatch_attempts ?? boundTx?.vision_mismatch_attempts ?? 0
+          );
+          const maxMismatchAttempts = Number(
+            visionResult?.max_mismatch_attempts ?? boundTx?.max_vision_mismatch_attempts ?? 3
+          );
+          const isMismatchRetryPending =
+            !isAlreadySettled &&
+            !chainPassed &&
+            (Boolean(visionResult?.grace_hold_active) ||
+              (boundTx?.status === "AUTHORIZED" &&
+                boundTx?.delivery_status === "VISION_MISMATCH_RETRY_PENDING"));
+          const attemptsRemaining = Math.max(
+            0,
+            Number(visionResult?.attempts_remaining ?? maxMismatchAttempts - mismatchAttempts)
+          );
           const activePipelineStep = isInspecting
             ? Math.max(1, visionPipelineStep)
             : hasResult || isAlreadySettled
@@ -2193,6 +2249,13 @@ export default function Home() {
                               : "Verified & Paid • Settled on PayPal"}
                           </span>
                         </span>
+                      ) : isMismatchRetryPending ? (
+                        <span className="font-mono font-semibold text-amber-300 inline-flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          <span>
+                            Mismatch {mismatchAttempts}/{maxMismatchAttempts} • Hold Intact ({attemptsRemaining} retry left)
+                          </span>
+                        </span>
                       ) : selectedPhotoFile ? (
                         <span className="font-mono text-zinc-300">
                           {selectedPhotoFile.name} ({Math.max(1, Math.round(selectedPhotoFile.size / 1024))} KB)
@@ -2249,12 +2312,21 @@ export default function Home() {
                           <button
                             onClick={() => handleInspectRealPhoto()}
                             disabled={loading || !selectedPhotoFile}
-                            className="px-4 py-2 rounded-full bg-[#1ed760] hover:bg-emerald-300 disabled:opacity-45 text-black text-xs font-extrabold inline-flex items-center gap-1.5 shadow-[0_0_20px_rgba(30,215,96,0.28)] transition-all cursor-pointer"
+                            className={`px-4 py-2 rounded-full disabled:opacity-45 text-black text-xs font-extrabold inline-flex items-center gap-1.5 transition-all cursor-pointer ${
+                              isMismatchRetryPending
+                                ? "bg-amber-400 hover:bg-amber-300 shadow-[0_0_20px_rgba(251,191,36,0.28)]"
+                                : "bg-[#1ed760] hover:bg-emerald-300 shadow-[0_0_20px_rgba(30,215,96,0.28)]"
+                            }`}
                           >
                             {isInspecting ? (
                               <>
                                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                 <span>Calling APIs...</span>
+                              </>
+                            ) : isMismatchRetryPending ? (
+                              <>
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Retry Vision Check ({attemptsRemaining} left)</span>
                               </>
                             ) : (
                               <>
@@ -2292,12 +2364,14 @@ export default function Home() {
                         ? "bg-sky-500/20 text-sky-300 border border-sky-500/40"
                         : chainPassed
                         ? "bg-[#1ed760] text-black shadow-[0_0_16px_rgba(30,215,96,0.35)]"
+                        : isMismatchRetryPending
+                        ? "bg-amber-400 text-black shadow-[0_0_16px_rgba(251,191,36,0.35)]"
                         : chainFailed
                         ? "bg-rose-500 text-white shadow-[0_0_16px_rgba(244,63,94,0.35)]"
                         : "bg-zinc-900 text-zinc-400 border border-zinc-800"
                     }`}
                   >
-                    {ins?.model ? ins.model : isInspecting ? "SCANNING" : chainPassed ? "VERIFIED" : chainFailed ? "FLAGGED" : "STANDBY"}
+                    {ins?.model ? ins.model : isInspecting ? "SCANNING" : chainPassed ? "VERIFIED" : isMismatchRetryPending ? `RETRY ${mismatchAttempts}/${maxMismatchAttempts}` : chainFailed ? "FLAGGED" : "STANDBY"}
                   </span>
                 </div>
 
@@ -2308,7 +2382,7 @@ export default function Home() {
                       { step: 1, label: "SHA-256 Hash", sub: "Evidence" },
                       { step: 2, label: "Gemini Vision", sub: "POD Scan" },
                       { step: 3, label: "Ledger Chain", sub: "Guardrails" },
-                      { step: 4, label: "PayPal API", sub: chainFailed ? "Void" : "Capture" },
+                      { step: 4, label: "PayPal API", sub: isMismatchRetryPending ? "Hold Kept" : chainFailed ? "Void" : "Capture" },
                     ].map((s) => {
                       const isDone = activePipelineStep === 4 || (activePipelineStep > s.step && isInspecting);
                       const isActive = isInspecting && activePipelineStep === s.step;
@@ -2319,7 +2393,9 @@ export default function Home() {
                             isActive
                               ? "bg-sky-500/15 border-sky-400/60 shadow-[0_0_16px_rgba(56,189,248,0.2)]"
                               : isDone
-                              ? chainFailed && s.step === 4
+                              ? isMismatchRetryPending && s.step === 4
+                                ? "bg-amber-500/10 border-amber-500/45"
+                                : chainFailed && s.step === 4
                                 ? "bg-rose-500/10 border-rose-500/40"
                                 : "bg-[#0d2217] border-[#1ed760]/40"
                               : "bg-[#121318] border-zinc-800/70 opacity-65"
@@ -2330,11 +2406,15 @@ export default function Home() {
                             {isActive ? (
                               <Loader2 className="w-3 h-3 text-sky-400 animate-spin" />
                             ) : isDone ? (
-                              <CheckCircle2
-                                className={`w-3 h-3 ${
-                                  chainFailed && s.step === 4 ? "text-rose-400" : "text-[#1ed760]"
-                                }`}
-                              />
+                              isMismatchRetryPending && s.step === 4 ? (
+                                <Lock className="w-3 h-3 text-amber-400" />
+                              ) : (
+                                <CheckCircle2
+                                  className={`w-3 h-3 ${
+                                    chainFailed && s.step === 4 ? "text-rose-400" : "text-[#1ed760]"
+                                  }`}
+                                />
+                              )
                             ) : (
                               <span className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
                             )}
@@ -2361,6 +2441,8 @@ export default function Home() {
                           ? "bg-sky-950/30 border-sky-500/40"
                           : chainPassed
                           ? "bg-emerald-950/35 border-emerald-500/50"
+                          : isMismatchRetryPending
+                          ? "bg-amber-950/30 border-amber-500/50"
                           : chainFailed
                           ? "bg-rose-950/35 border-rose-500/50"
                           : "bg-[#121318] border-zinc-800/80"
@@ -2376,12 +2458,22 @@ export default function Home() {
                               ? "bg-sky-500/20 text-sky-300"
                               : chainPassed
                               ? "bg-[#1ed760]/20 text-[#1ed760]"
+                              : isMismatchRetryPending
+                              ? "bg-amber-500/20 text-amber-300"
                               : chainFailed
                               ? "bg-rose-500/20 text-rose-300"
                               : "bg-zinc-800 text-zinc-400"
                           }`}
                         >
-                          {isInspecting ? "CHECKING" : chainPassed ? "PASS • GREEN" : chainFailed ? "FAIL • RED" : "IDLE"}
+                          {isInspecting
+                            ? "CHECKING"
+                            : chainPassed
+                            ? "PASS • GREEN"
+                            : isMismatchRetryPending
+                            ? `RETRY • ${mismatchAttempts}/${maxMismatchAttempts}`
+                            : chainFailed
+                            ? "FAIL • RED"
+                            : "IDLE"}
                         </span>
                       </div>
 
@@ -2390,6 +2482,8 @@ export default function Home() {
                           <Loader2 className="w-4 h-4 text-sky-400 animate-spin shrink-0 mt-0.5" />
                         ) : chainPassed ? (
                           <CheckCircle2 className="w-4 h-4 text-[#1ed760] shrink-0 mt-0.5" />
+                        ) : isMismatchRetryPending ? (
+                          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                         ) : chainFailed ? (
                           <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
                         ) : (
@@ -2398,7 +2492,13 @@ export default function Home() {
                         <div className="min-w-0 space-y-0.5">
                           <p
                             className={`text-xs font-semibold truncate ${
-                              chainPassed ? "text-emerald-200" : chainFailed ? "text-rose-200" : "text-zinc-200"
+                              chainPassed
+                                ? "text-emerald-200"
+                                : isMismatchRetryPending
+                                ? "text-amber-200"
+                                : chainFailed
+                                ? "text-rose-200"
+                                : "text-zinc-200"
                             }`}
                           >
                             {isInspecting
@@ -2435,6 +2535,8 @@ export default function Home() {
                           ? "bg-sky-950/30 border-sky-500/40"
                           : chainPassed
                           ? "bg-emerald-950/35 border-emerald-500/50"
+                          : isMismatchRetryPending
+                          ? "bg-amber-950/30 border-amber-500/50"
                           : chainFailed
                           ? "bg-rose-950/35 border-rose-500/50"
                           : "bg-[#121318] border-zinc-800/80"
@@ -2450,6 +2552,8 @@ export default function Home() {
                               ? "bg-sky-500/20 text-sky-300"
                               : chainPassed
                               ? "bg-[#1ed760]/20 text-[#1ed760]"
+                              : isMismatchRetryPending
+                              ? "bg-amber-500/20 text-amber-300"
                               : chainFailed
                               ? "bg-rose-500/20 text-rose-300"
                               : "bg-zinc-800 text-zinc-400"
@@ -2461,6 +2565,8 @@ export default function Home() {
                             ? "CAPTURED"
                             : isSettledProtected
                             ? visionResult.status
+                            : isMismatchRetryPending
+                            ? `HOLD KEPT (${attemptsRemaining} LEFT)`
                             : chainPassed
                             ? "RELEASE READY"
                             : chainFailed
@@ -2473,7 +2579,13 @@ export default function Home() {
                         <div className="min-w-0 space-y-0.5">
                           <p
                             className={`text-xs font-semibold ${
-                              chainPassed ? "text-emerald-200" : chainFailed ? "text-rose-200" : "text-zinc-200"
+                              chainPassed
+                                ? "text-emerald-200"
+                                : isMismatchRetryPending
+                                ? "text-amber-200"
+                                : chainFailed
+                                ? "text-rose-200"
+                                : "text-zinc-200"
                             }`}
                           >
                             {isInspecting
@@ -2482,6 +2594,8 @@ export default function Home() {
                               ? "Escrow Released to Seller"
                               : isSettledProtected
                               ? "Buyer Protected (Hold Cancelled)"
+                              : isMismatchRetryPending
+                              ? "PayPal Hold Intact • Retry Window"
                               : chainPassed
                               ? "Eligible for PayPal Capture"
                               : chainFailed
@@ -2493,6 +2607,8 @@ export default function Home() {
                               ? `Capture ID: ${visionResult.paypal_capture_id || "Confirmed"}`
                               : visionResult?.auto_settle_error
                               ? visionResult.auto_settle_error
+                              : isMismatchRetryPending
+                              ? `Upload correct POD (${attemptsRemaining} attempt${attemptsRemaining === 1 ? "" : "s"} left) or void manually`
                               : chainPassed
                               ? photoTxId
                                 ? "Authorized hold ready to settle"
@@ -2513,14 +2629,14 @@ export default function Home() {
                             Capture
                           </button>
                         )}
-                        {chainFailed && photoTxId && !isSettledProtected && (
+                        {(chainFailed || isMismatchRetryPending) && (photoTxId || boundTx?.id) && !isSettledProtected && (
                           <button
                             type="button"
-                            onClick={() => handleVoidOrDispute(photoTxId)}
+                            onClick={() => handleVoidOrDispute(photoTxId || boundTx.id)}
                             disabled={loading}
                             className="px-2.5 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-400 text-white text-[11px] font-bold shrink-0"
                           >
-                            Void Hold
+                            {isMismatchRetryPending ? "Void Hold Now" : "Void Hold"}
                           </button>
                         )}
                       </div>

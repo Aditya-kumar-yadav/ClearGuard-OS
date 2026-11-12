@@ -217,3 +217,98 @@ def test_paypal_connect_rejects_invalid_oauth(monkeypatch):
     )
     assert resp.status_code == 401
     assert resp.json()["detail"]["error"] == "PayPalAuthError"
+
+
+def test_vision_mismatch_allows_3_attempts_before_void(monkeypatch):
+    main.kill_switch.reset_lockdown()
+    monkeypatch.setattr(main.vision_arbiter, "api_key", "AIza_TEST_KEY")
+    monkeypatch.setattr(main.vision_arbiter, "_genai_client", None)
+    monkeypatch.setattr(main, "_persist_ledger_cache", lambda: None)
+    monkeypatch.setattr(main, "_save_vision_evidence", lambda **kw: None)
+
+    tx_id = "TX-MISMATCH-GRACE-1"
+    main.TRANSACTIONS_LEDGER.insert(
+        0,
+        {
+            "id": tx_id,
+            "item_name": "OnePlus 12 5G (16GB RAM, 512GB)",
+            "category": "electronics",
+            "amount": 494.12,
+            "currency": "USD",
+            "status": "AUTHORIZED",
+            "delivery_status": "AWAITING_DELIVERY",
+            "paypal_auth_id": "AUTH-GRACE-111",
+            "tracking_number": "TRKGRACE01",
+            "state_chain": [],
+        },
+    )
+
+    mismatch_payload = {
+        "verdict": "ITEM_MISMATCH_SUSPECTED_FRAUD",
+        "condition": "MISMATCHED_ITEM",
+        "integrity_score": 0.0,
+        "deformation_score": 0.0,
+        "detected_item": "Mechanical keyboard",
+        "item_matches_order": False,
+        "order_no_match_status": "ITEM_MISMATCH",
+        "recommended_action": "VOID_ESCROW",
+        "ocr_extracted": {"tamper_tape_intact": False},
+        "vision_reasoning": ["Photo shows a keyboard instead of a OnePlus 12 5G phone."],
+    }
+    void_mock = AsyncMock(
+        return_value={"status": "VOIDED", "authorization_id": "AUTH-GRACE-111", "live_call": True}
+    )
+    monkeypatch.setattr(main.paypal_client, "void_authorization", void_mock)
+
+    mock_models = MagicMock()
+    mock_models.generate_content.return_value = SimpleNamespace(text=json.dumps(mismatch_payload))
+    mock_client = SimpleNamespace(models=mock_models)
+
+    try:
+        with patch("core.vision_arbiter.genai.Client", return_value=mock_client):
+            # Attempt 1: mismatch -> keep AUTHORIZED hold intact (2 retries remaining)
+            r1 = client.post(
+                "/api/vision/inspect-photo",
+                data={"transaction_id": tx_id, "auto_settle": "true"},
+                files={"file": ("kbd1.png", _make_png_bytes((200, 40, 40)), "image/png")},
+            )
+            assert r1.status_code == 200
+            d1 = r1.json()
+            assert d1["status"] == "AUTHORIZED"
+            assert d1["delivery_status"] == "VISION_MISMATCH_RETRY_PENDING"
+            assert d1["grace_hold_active"] is True
+            assert d1["mismatch_attempts"] == 1
+            assert d1["attempts_remaining"] == 2
+            void_mock.assert_not_awaited()
+
+            # Attempt 2: mismatch -> keep AUTHORIZED hold intact (1 retry remaining)
+            r2 = client.post(
+                "/api/vision/inspect-photo",
+                data={"transaction_id": tx_id, "auto_settle": "true"},
+                files={"file": ("kbd2.png", _make_png_bytes((210, 50, 50)), "image/png")},
+            )
+            assert r2.status_code == 200
+            d2 = r2.json()
+            assert d2["status"] == "AUTHORIZED"
+            assert d2["grace_hold_active"] is True
+            assert d2["mismatch_attempts"] == 2
+            assert d2["attempts_remaining"] == 1
+            void_mock.assert_not_awaited()
+
+            # Attempt 3: 3rd consecutive mismatch -> auto-void PayPal hold
+            r3 = client.post(
+                "/api/vision/inspect-photo",
+                data={"transaction_id": tx_id, "auto_settle": "true"},
+                files={"file": ("kbd3.png", _make_png_bytes((220, 60, 60)), "image/png")},
+            )
+            assert r3.status_code == 200
+            d3 = r3.json()
+            assert d3["status"] == "VOIDED"
+            assert d3["grace_hold_active"] is False
+            assert d3["auto_settled"] is True
+            assert d3["mismatch_attempts"] == 3
+            assert d3["attempts_remaining"] == 0
+            void_mock.assert_awaited_once()
+    finally:
+        main.TRANSACTIONS_LEDGER[:] = [t for t in main.TRANSACTIONS_LEDGER if t.get("id") != tx_id]
+
