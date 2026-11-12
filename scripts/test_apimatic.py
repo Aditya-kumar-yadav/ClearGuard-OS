@@ -1,5 +1,9 @@
+import os
 import sys
-sys.path.append(r"c:\Users\bitd\Downloads\paypal\aurorapay-os\agents")
+
+AGENTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "agents"))
+if AGENTS_DIR not in sys.path:
+    sys.path.insert(0, AGENTS_DIR)
 from tools.apimatic_plugin import APIMaticContextPlugin
 
 print("Testing APIMatic OpenAPI Schema Declarations...")
