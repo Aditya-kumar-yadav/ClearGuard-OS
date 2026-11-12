@@ -1028,104 +1028,115 @@ export default function Home() {
 
       {/* MAIN DESKTOP CONTAINER — extra right clearance keeps floating edge dock from overlapping cards */}
       <main className="flex-1 max-w-[1460px] w-full mx-auto pl-5 sm:pl-6 pr-20 sm:pr-24 py-6 space-y-6">
-        {/* 4-COLUMN PC KPI BAR */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          <div className="surface-card p-5 space-y-3">
+        {/* 4-COLUMN PC KPI BAR — Equal-height synced 3-tier cards */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5 items-stretch">
+          <div className="surface-card p-4 flex flex-col justify-between gap-2.5 h-full">
             <div className="flex items-center justify-between text-xs font-medium text-slate-500">
               <span>Escrow Pool Remaining</span>
-              <Wallet className="w-4 h-4 text-[#7c3aed]" />
+              <Wallet className="w-4 h-4 text-[#7c3aed] shrink-0" />
             </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-xl font-extrabold text-slate-900 tabular-nums">{formatMoney(mandate.remaining_pool)}</span>
-              <span className="text-[11px] font-mono text-slate-500">{poolUsagePct}% avail</span>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-xl font-extrabold text-slate-900 tabular-nums leading-none">{formatMoney(mandate.remaining_pool)}</span>
+              <span className="text-[11px] font-mono text-slate-500 shrink-0">{poolUsagePct}% avail</span>
             </div>
-            <div className="w-full h-1.5 rounded-full bg-[#ede9fe] overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-[#7c3aed] to-[#6366f1] rounded-full transition-all" style={{ width: `${poolUsagePct}%` }} />
+            <div className="h-4 flex items-center">
+              <div className="w-full h-1.5 rounded-full bg-[#ede9fe] overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-[#7c3aed] to-[#6366f1] rounded-full transition-all" style={{ width: `${poolUsagePct}%` }} />
+              </div>
             </div>
           </div>
 
-          <div className="surface-card p-5 space-y-2.5">
+          <div className="surface-card p-4 flex flex-col justify-between gap-2.5 h-full">
             <div className="flex items-center justify-between text-xs font-medium text-slate-500">
               <span>Per-Order Cap</span>
-              <Shield className="w-4 h-4 text-[#7c3aed]" />
+              <Shield className="w-4 h-4 text-[#7c3aed] shrink-0" />
             </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-xl font-extrabold text-slate-900 tabular-nums">{formatMoney(mandate.max_single_spend)}</span>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-xl font-extrabold text-slate-900 tabular-nums leading-none">{formatMoney(mandate.max_single_spend)}</span>
               <button
                 onClick={() => setIsSetAmountModalOpen(true)}
-                className="text-[11px] text-[#6d28d9] hover:text-violet-800 hover:underline font-semibold"
+                className="text-[11px] text-[#6d28d9] hover:text-violet-800 hover:underline font-semibold shrink-0"
               >
                 Adjust
               </button>
             </div>
-            <p className="text-[11px] text-slate-500 truncate">Allowed: {mandate.allowed_categories}</p>
+            <div className="h-4 flex items-center">
+              <p className="text-[11px] text-slate-500 truncate w-full">Allowed: {mandate.allowed_categories}</p>
+            </div>
           </div>
 
-          <div className="surface-card p-5 space-y-2.5">
+          <div className="surface-card p-4 flex flex-col justify-between gap-2.5 h-full">
             <div className="flex items-center justify-between text-xs font-medium text-slate-500">
               <span>Escrow Pipeline</span>
-              <ShoppingBag className="w-4 h-4 text-[#7c3aed]" />
+              <ShoppingBag className="w-4 h-4 text-[#7c3aed] shrink-0" />
             </div>
-            <div className="flex items-baseline gap-4">
-              <div>
-                <span className="text-xl font-extrabold text-slate-900 tabular-nums">{authorizedCount}</span>
-                <span className="text-xs text-slate-500 ml-1">Authorized</span>
+            <div className="flex items-baseline gap-3.5">
+              <div className="flex items-baseline gap-1">
+                <span className="text-xl font-extrabold text-slate-900 tabular-nums leading-none">{authorizedCount}</span>
+                <span className="text-xs text-slate-500">Authorized</span>
               </div>
-              <div>
-                <span className="text-xl font-extrabold text-[#6d28d9] tabular-nums">{pendingCount}</span>
-                <span className="text-xs text-slate-500 ml-1">Pending</span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-xl font-extrabold text-[#6d28d9] tabular-nums leading-none">{pendingCount}</span>
+                <span className="text-xs text-slate-500">Pending</span>
               </div>
             </div>
-            <button
-              onClick={() => setActiveTab("orders")}
-              className="text-[11px] text-[#6d28d9] hover:text-violet-800 font-semibold inline-flex items-center gap-1"
-            >
-              <span>Manage orders</span>
-              <ArrowRight className="w-3 h-3" />
-            </button>
+            <div className="h-4 flex items-center">
+              <button
+                onClick={() => setActiveTab("orders")}
+                className="text-[11px] text-[#6d28d9] hover:text-violet-800 font-semibold inline-flex items-center gap-1"
+              >
+                <span>Manage orders</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
           </div>
 
-          <div className="surface-card p-5 space-y-2.5">
+          <div className="surface-card p-4 flex flex-col justify-between gap-2.5 h-full">
             <div className="flex items-center justify-between text-xs font-medium text-slate-500">
               <span>Live Backend &amp; APIs</span>
               <span
-                className={`w-2.5 h-2.5 rounded-full ${
+                className={`w-2.5 h-2.5 rounded-full shrink-0 ${
                   backendHealth.status === "ONLINE" ? "bg-emerald-500" : "bg-rose-500"
                 }`}
               />
             </div>
-            <div className="flex items-center gap-2 flex-wrap pt-0.5">
+            <div className="flex items-center justify-between gap-2">
               <span
-                className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold border ${
+                className={`text-xl font-extrabold tracking-tight leading-none ${
+                  backendHealth.status === "ONLINE" ? "text-emerald-700" : "text-rose-700"
+                }`}
+              >
+                {backendHealth.status === "ONLINE" ? "ONLINE" : backendHealth.status}
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold border shrink-0 ${
                   backendHealth.status === "ONLINE"
                     ? "bg-emerald-50 border-emerald-200 text-emerald-700"
                     : "bg-rose-50 border-rose-200 text-rose-700"
                 }`}
               >
-                API :8000 {backendHealth.status}
-              </span>
-              <span
-                className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold border ${
-                  backendHealth.paypal_configured
-                    ? "bg-violet-50 border-violet-200 text-violet-700"
-                    : "bg-amber-50 border-amber-200 text-amber-700"
-                }`}
-              >
-                PayPal: {backendHealth.paypal_configured ? "Ready" : "Missing"}
-              </span>
-              <span
-                className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold border ${
-                  backendHealth.gemini_configured
-                    ? "bg-violet-50 border-violet-200 text-violet-700"
-                    : "bg-amber-50 border-amber-200 text-amber-700"
-                }`}
-              >
-                AI Engine: {backendHealth.gemini_configured ? "Ready" : "Missing"}
+                Cloud API
               </span>
             </div>
-            {(!backendHealth.paypal_configured || !backendHealth.gemini_configured) && (
-              <p className="text-[11px] text-slate-500">Add missing keys in <code className="text-slate-700">.env</code></p>
-            )}
+            <div className="h-4 flex items-center gap-2 overflow-hidden">
+              <span
+                className={`inline-flex items-center gap-1 text-[11px] font-mono font-semibold truncate ${
+                  backendHealth.paypal_configured ? "text-[#6d28d9]" : "text-amber-700"
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${backendHealth.paypal_configured ? "bg-emerald-500" : "bg-amber-500"}`} />
+                PayPal {backendHealth.paypal_configured ? "Ready" : "Missing"}
+              </span>
+              <span className="text-slate-300 text-[10px]">•</span>
+              <span
+                className={`inline-flex items-center gap-1 text-[11px] font-mono font-semibold truncate ${
+                  backendHealth.gemini_configured ? "text-[#6d28d9]" : "text-amber-700"
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${backendHealth.gemini_configured ? "bg-emerald-500" : "bg-amber-500"}`} />
+                AI {backendHealth.gemini_configured ? "Ready" : "Missing"}
+              </span>
+            </div>
           </div>
         </section>
 
@@ -1160,7 +1171,7 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Left 8 Columns: Product Catalog */}
             <div className="lg:col-span-8 space-y-4">
-              <div className="surface-card p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="surface-card p-3.5 lg:min-h-[72px] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {[
                     { id: "all", label: `All Items (${products.length})` },
@@ -1266,9 +1277,9 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setIsEdgeBuyOpen((v) => !v)}
-                className="w-full text-left group relative overflow-hidden bg-gradient-to-r from-[#7c3aed] via-[#6d28d9] to-[#6366f1] hover:from-[#8b5cf6] hover:to-[#6366f1] rounded-2xl p-4 shadow-[0_14px_30px_-8px_rgba(109,40,217,0.45)] transition-all"
+                className="w-full lg:min-h-[72px] flex items-center text-left group relative overflow-hidden bg-gradient-to-r from-[#7c3aed] via-[#6d28d9] to-[#6366f1] hover:from-[#8b5cf6] hover:to-[#6366f1] rounded-2xl px-4 py-3.5 shadow-[0_14px_30px_-8px_rgba(109,40,217,0.45)] transition-all"
               >
-                <div className="flex items-center justify-between gap-3">
+                <div className="w-full min-w-0 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform backdrop-blur-sm">
                       <Sparkles className="w-5 h-5 text-white" />
