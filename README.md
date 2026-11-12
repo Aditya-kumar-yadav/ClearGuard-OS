@@ -198,7 +198,7 @@ ClearGuard-OS/
 │   │   ├── components/
 │   │   │   ├── AuditModal.tsx   # Interactive SHA-256 ledger inspector
 │   │   │   ├── EdgeDockRail.tsx # Organic curved smartphone aesthetic dock
-│   │   │   ├── LuxuryWalletView.tsx
+│   │   │   ├── SettlementFlowModal.tsx # Live PayPal capture/void step trace
 │   │   │   └── ProductCatalog.tsx
 │   │   └── lib/
 │   │       └── fetcher.ts       # Resilient API fetcher with brutalist toasts
